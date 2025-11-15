@@ -38,9 +38,13 @@ app.get('/api/health', (req, res) => {
   });
 });
 
-// API Routes (we'll add these next)
-// app.use('/api/users', userRoutes);
-// app.use('/api/jobs', jobRoutes);
+// Import Routes
+import userRoutes from './routes/userRoutes.js';
+import jobRoutes from './routes/jobRoutes.js';
+
+// API Routes
+app.use('/api/users', userRoutes);
+app.use('/api/jobs', jobRoutes);
 // app.use('/api/applications', applicationRoutes);
 
 // Error handling middleware

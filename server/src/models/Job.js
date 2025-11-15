@@ -1,67 +1,74 @@
 import mongoose from 'mongoose';
 
-const userSchema = new mongoose.Schema({
-  clerkId: {
+const jobSchema = new mongoose.Schema({
+  title: {
     type: String,
     required: true,
-    unique: true,
+    trim: true,
   },
-  email: {
-    type: String,
-    required: true,
-    unique: true,
-    lowercase: true,
-  },
-  firstName: {
+  description: {
     type: String,
     required: true,
   },
-  lastName: {
+  category: {
     type: String,
     required: true,
+    enum: [
+      'Web Development',
+      'Mobile Development',
+      'Design & Creative',
+      'Writing & Content',
+      'Digital Marketing',
+      'Data & Analytics',
+      'Admin & Customer Support',
+      'Other'
+    ],
   },
-  role: {
+  budget: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+  budgetType: {
     type: String,
-    enum: ['freelancer', 'client'],
+    enum: ['fixed', 'hourly'],
+    default: 'fixed',
+  },
+  deadline: {
+    type: Date,
     required: true,
   },
-  profileImage: {
+  status: {
     type: String,
-    default: '',
+    enum: ['open', 'in_progress', 'completed', 'closed'],
+    default: 'open',
   },
-  bio: {
-    type: String,
-    default: '',
-    maxlength: 500,
+  postedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true,
+  },
+  acceptedFreelancer: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
   },
   skills: [{
     type: String,
   }],
-  hourlyRate: {
+  applicationsCount: {
     type: Number,
-    min: 0,
+    default: 0,
   },
-  location: {
-    type: String,
-    default: '',
-  },
-  phone: {
-    type: String,
-    default: '',
-  },
-  portfolio: [{
-    title: String,
-    url: String,
-    description: String,
-  }],
 }, {
   timestamps: true,
 });
 
-// Index for faster queries
-userSchema.index({ clerkId: 1 });
-userSchema.index({ email: 1 });
+// Indexes for better query performance
+jobSchema.index({ status: 1, createdAt: -1 });
+jobSchema.index({ category: 1 });
+jobSchema.index({ postedBy: 1 });
 
-const User = mongoose.model('User', userSchema);
+const Job = mongoose.model('Job', jobSchema);
 
-export default User;
+export default Job;

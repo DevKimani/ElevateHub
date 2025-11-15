@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { userService } from '../services/userService';
 import { setAuthToken } from '../services/api';
 
@@ -133,29 +133,29 @@ export default function Dashboard() {
           <div className="grid md:grid-cols-2 gap-4">
             {user.role === 'freelancer' ? (
               <>
-                <button className="btn-primary text-left p-4">
+                <Link to="/jobs" className="btn-primary text-left p-4 block">
                   <div className="text-2xl mb-2">🔍</div>
                   <div className="font-semibold">Browse Jobs</div>
                   <div className="text-sm opacity-90">Find your next opportunity</div>
-                </button>
-                <button className="btn-secondary text-left p-4">
-                  <div className="text-2xl mb-2">👤</div>
-                  <div className="font-semibold">Edit Profile</div>
-                  <div className="text-sm">Update your information</div>
-                </button>
+                </Link>
+                <Link to="/my-applications" className="btn-secondary text-left p-4 block">
+                  <div className="text-2xl mb-2">📝</div>
+                  <div className="font-semibold">My Applications</div>
+                  <div className="text-sm">Track your applications</div>
+                </Link>
               </>
             ) : (
               <>
-                <button className="btn-primary text-left p-4">
+                <Link to="/post-job" className="btn-primary text-left p-4 block">
                   <div className="text-2xl mb-2">➕</div>
                   <div className="font-semibold">Post a Job</div>
                   <div className="text-sm opacity-90">Find the right talent</div>
-                </button>
-                <button className="btn-secondary text-left p-4">
+                </Link>
+                <Link to="/my-jobs" className="btn-secondary text-left p-4 block">
                   <div className="text-2xl mb-2">📋</div>
                   <div className="font-semibold">Manage Jobs</div>
                   <div className="text-sm">View your posted jobs</div>
-                </button>
+                </Link>
               </>
             )}
           </div>
