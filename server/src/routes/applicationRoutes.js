@@ -12,9 +12,13 @@ const router = express.Router();
 
 // All routes require authentication
 router.post('/', requireAuth, createApplication);
+
+// Specific routes - must come before /:id
 router.get('/my-applications', requireAuth, getMyApplications);
 router.get('/job/:jobId', requireAuth, getJobApplications);
 router.put('/:id/status', requireAuth, updateApplicationStatus);
+
+// Dynamic routes - must come last
 router.get('/:id', requireAuth, getApplicationById);
 
 export default router;

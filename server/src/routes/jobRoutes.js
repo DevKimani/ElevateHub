@@ -13,12 +13,14 @@ const router = express.Router();
 
 // Public routes
 router.get('/', getAllJobs);
-router.get('/:id', getJobById);
 
-// Protected routes
+// Protected routes - must come before /:id
 router.post('/', requireAuth, createJob);
+router.get('/user/my-jobs', requireAuth, getMyJobs);
+
+// Dynamic routes - must come last
+router.get('/:id', getJobById);
 router.put('/:id', requireAuth, updateJob);
 router.delete('/:id', requireAuth, deleteJob);
-router.get('/user/my-jobs', requireAuth, getMyJobs);
 
 export default router;
