@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { jobService } from '../services/jobService';
 import { userService } from '../services/userService';
@@ -20,13 +20,10 @@ export default function JobDetail() {
 
   useEffect(() => {
     fetchJobDetail();
-  }, [id]);
-
-  useEffect(() => {
     if (isSignedIn) {
       fetchCurrentUser();
     }
-  }, [isSignedIn]);
+  }, [id, isSignedIn]);
 
   const fetchJobDetail = async () => {
     try {
@@ -223,12 +220,12 @@ export default function JobDetail() {
                 </>
               ) : !isSignedIn ? (
                 <>
-                  <a href="/sign-up" className="w-full btn-primary py-3 mb-4 block text-center">
+                  <Link to="/sign-up" className="w-full btn-primary py-3 mb-4 block text-center">
                     Sign Up to Apply
-                  </a>
-                  <a href="/sign-in" className="w-full btn-secondary py-3 block text-center">
+                  </Link>
+                  <Link to="/sign-in" className="w-full btn-secondary py-3 block text-center">
                     Sign In
-                  </a>
+                  </Link>
                 </>
               ) : currentUser?.role === 'client' ? (
                 <div className="text-center text-gray-600">

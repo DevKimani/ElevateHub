@@ -1,4 +1,6 @@
 import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import connectDB from './config/db.js';
@@ -8,6 +10,15 @@ dotenv.config();
 
 // Initialize Express app
 const app = express();
+const httpServer = createServer(app);
+
+// Initialize Socket.IO
+const io = new Server(httpServer, {
+  cors: {
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    credentials: true,
+  },
+});
 
 // Connect to MongoDB
 connectDB();
@@ -41,11 +52,12 @@ app.get('/api/health', (req, res) => {
 // Import Routes
 import userRoutes from './routes/userRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
+import applicationRoutes from './routes/applicationRoutes.js';
 
 // API Routes
 app.use('/api/users', userRoutes);
 app.use('/api/jobs', jobRoutes);
-// app.use('/api/applications', applicationRoutes);
+app.use('/api/applications', applicationRoutes);
 
 // Error handling middleware
 app.use((err, req, res, next) => {

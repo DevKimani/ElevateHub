@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { jobService } from '../services/jobService';
 import { setAuthToken } from '../services/api';
+import { useToast } from '../hooks/useToast';
+import Toast from '../components/Toast';
 
 const categories = [
   'Web Development',

@@ -11,6 +11,8 @@ import JobDetail from './pages/JobDetail';
 import MyJobs from './pages/MyJobs';
 import MyApplications from './pages/MyApplications';
 import JobApplications from './pages/JobApplications';
+import Messages from './pages/Messages';
+import Chat from './pages/Chat';
 
 function App() {
   return (
@@ -55,6 +57,11 @@ function App() {
           <Route path="/sign-in/*" element={<SignInPage />} />
           <Route path="/jobs" element={<BrowseJobs />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
+          <Route path="/jobs/:jobId/applications" element={
+            <SignedIn>
+              <JobApplications />
+            </SignedIn>
+          } />
           <Route path="/complete-profile" element={
             <SignedIn>
               <CompleteProfile />
@@ -73,6 +80,11 @@ function App() {
           <Route path="/my-jobs" element={
             <SignedIn>
               <MyJobs />
+            </SignedIn>
+          } />
+          <Route path="/my-applications" element={
+            <SignedIn>
+              <MyApplications />
             </SignedIn>
           } />
         </Routes>

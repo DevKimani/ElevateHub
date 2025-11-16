@@ -3,9 +3,12 @@ import { X } from 'lucide-react';
 import { useAuth } from '@clerk/clerk-react';
 import { applicationService } from '../services/applicationService';
 import { setAuthToken } from '../services/api';
+import { useToast } from '../hooks/useToast';
+import Toast from './Toast';
 
 export default function ApplyModal({ job, isOpen, onClose, onSuccess }) {
   const { getToken } = useAuth();
+  const { toast, showToast, hideToast } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 

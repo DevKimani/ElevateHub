@@ -4,7 +4,7 @@ import { useAuth } from '@clerk/clerk-react';
 import { applicationService } from '../services/applicationService';
 import { jobService } from '../services/jobService';
 import { setAuthToken } from '../services/api';
-import { ArrowLeft, User, Mail, MapPin, DollarSign, Calendar, CheckCircle, XCircle } from 'lucide-react';
+import { ArrowLeft, User, Mail, MapPin, DollarSign, Calendar, CheckCircle, XCircle, MessageCircle } from 'lucide-react';
 
 export default function JobApplications() {
   const { jobId } = useParams();

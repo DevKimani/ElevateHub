@@ -2,12 +2,20 @@ import { useState, useEffect } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { userService } from '../services/userService';
+import { jobService } from '../services/jobService';
+import { applicationService } from '../services/applicationService';
 import { setAuthToken } from '../services/api';
 
 export default function Dashboard() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [stats, setStats] = useState({
+    totalJobs: 0,
+    totalApplications: 0,
+    pendingApplications: 0,
+    acceptedApplications: 0,
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -29,10 +37,45 @@ export default function Dashboard() {
       }
 
       setUser(userData);
+      
+      // Fetch stats based on role
+      await fetchStats(userData.role, token);
     } catch (error) {
       console.error('Error fetching profile:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchStats = async (role, token) => {
+    try {
+      setAuthToken(token);
+      
+      if (role === 'freelancer') {
+        // Fetch freelancer applications
+        const appsResponse = await applicationService.getMyApplications();
+        const applications = appsResponse.data;
+        
+        setStats({
+          totalApplications: applications.length,
+          pendingApplications: applications.filter(a => a.status === 'pending').length,
+          acceptedApplications: applications.filter(a => a.status === 'accepted').length,
+        });
+      } else {
+        // Fetch client jobs
+        const jobsResponse = await jobService.getMyJobs();
+        const jobs = jobsResponse.data;
+        
+        const totalApplications = jobs.reduce((sum, job) => sum + (job.applicationsCount || 0), 0);
+        
+        setStats({
+          totalJobs: jobs.length,
+          activeJobs: jobs.filter(j => j.status === 'open').length,
+          totalApplications: totalApplications,
+        });
+      }
+    } catch (error) {
+      console.error('Error fetching stats:', error);
     }
   };
 
@@ -100,27 +143,35 @@ export default function Dashboard() {
             <>
               <div className="card">
                 <h3 className="text-lg font-semibold mb-2">Applications</h3>
-                <p className="text-3xl font-bold text-primary-600">0</p>
-                <p className="text-sm text-gray-600">Active applications</p>
+                <p className="text-3xl font-bold text-primary-600">{stats.totalApplications}</p>
+                <p className="text-sm text-gray-600">Total submitted</p>
               </div>
               <div className="card">
-                <h3 className="text-lg font-semibold mb-2">Hourly Rate</h3>
-                <p className="text-3xl font-bold text-primary-600">
-                  KES {user.hourlyRate || 0}
-                </p>
-                <p className="text-sm text-gray-600">Per hour</p>
+                <h3 className="text-lg font-semibold mb-2">Pending</h3>
+                <p className="text-3xl font-bold text-yellow-600">{stats.pendingApplications}</p>
+                <p className="text-sm text-gray-600">Awaiting response</p>
+              </div>
+              <div className="card">
+                <h3 className="text-lg font-semibold mb-2">Accepted</h3>
+                <p className="text-3xl font-bold text-green-600">{stats.acceptedApplications}</p>
+                <p className="text-sm text-gray-600">Active projects</p>
               </div>
             </>
           ) : (
             <>
               <div className="card">
                 <h3 className="text-lg font-semibold mb-2">Active Jobs</h3>
-                <p className="text-3xl font-bold text-primary-600">0</p>
+                <p className="text-3xl font-bold text-primary-600">{stats.totalJobs}</p>
                 <p className="text-sm text-gray-600">Jobs posted</p>
               </div>
               <div className="card">
+                <h3 className="text-lg font-semibold mb-2">Open Jobs</h3>
+                <p className="text-3xl font-bold text-green-600">{stats.activeJobs}</p>
+                <p className="text-sm text-gray-600">Accepting applications</p>
+              </div>
+              <div className="card">
                 <h3 className="text-lg font-semibold mb-2">Applications</h3>
-                <p className="text-3xl font-bold text-primary-600">0</p>
+                <p className="text-3xl font-bold text-primary-600">{stats.totalApplications}</p>
                 <p className="text-sm text-gray-600">Received</p>
               </div>
             </>
@@ -143,6 +194,13 @@ export default function Dashboard() {
                   <div className="font-semibold">My Applications</div>
                   <div className="text-sm">Track your applications</div>
                 </Link>
+                {stats.acceptedApplications > 0 && (
+                  <Link to="/messages" className="bg-blue-600 hover:bg-blue-700 text-white text-left p-4 block rounded-lg transition-colors">
+                    <div className="text-2xl mb-2">💬</div>
+                    <div className="font-semibold">Messages</div>
+                    <div className="text-sm opacity-90">{stats.acceptedApplications} active project(s)</div>
+                  </Link>
+                )}
               </>
             ) : (
               <>
@@ -156,6 +214,13 @@ export default function Dashboard() {
                   <div className="font-semibold">Manage Jobs</div>
                   <div className="text-sm">View your posted jobs</div>
                 </Link>
+                {stats.totalApplications > 0 && (
+                  <Link to="/messages" className="bg-blue-600 hover:bg-blue-700 text-white text-left p-4 block rounded-lg transition-colors">
+                    <div className="text-2xl mb-2">💬</div>
+                    <div className="font-semibold">Messages</div>
+                    <div className="text-sm opacity-90">Chat with freelancers</div>
+                  </Link>
+                )}
               </>
             )}
           </div>

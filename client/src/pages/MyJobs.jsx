@@ -182,21 +182,30 @@ export default function MyJobs() {
                   <div className="flex items-center gap-4">
                     <Link 
                       to={`/jobs/${job._id}/applications`}
-                      className="text-center"
+                      className="flex items-center gap-2 px-4 py-2 bg-primary-50 hover:bg-primary-100 text-primary-700 rounded-lg transition-colors"
                     >
-                      <p className="text-2xl font-bold text-primary-600 hover:text-primary-700">
-                        {job.applicationsCount || 0}
-                      </p>
-                      <p className="text-sm text-gray-600">Applications</p>
+                      <div className="text-center">
+                        <p className="text-2xl font-bold">
+                          {job.applicationsCount || 0}
+                        </p>
+                        <p className="text-xs">Applications</p>
+                      </div>
                     </Link>
-                    <div className="text-center">
-                      <p className="text-sm text-gray-600">
-                        Posted {formatDate(job.createdAt)}
+                    <div className="text-sm text-gray-600">
+                      <p>Posted {formatDate(job.createdAt)}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Click applications to view
                       </p>
                     </div>
                   </div>
 
                   <div className="flex gap-2">
+                    <Link
+                      to={`/jobs/${job._id}/applications`}
+                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center"
+                    >
+                      View Applications
+                    </Link>
                     <button
                       onClick={() => alert('Edit functionality coming soon!')}
                       className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center"

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { applicationService } from '../services/applicationService';
 import { setAuthToken } from '../services/api';
-import { Briefcase, DollarSign, Calendar, Clock, CheckCircle, XCircle, FileText } from 'lucide-react';
+import { Briefcase, DollarSign, Calendar, Clock, CheckCircle, XCircle, FileText, MessageCircle } from 'lucide-react';
 
 export default function MyApplications() {
   const { getToken } = useAuth();
