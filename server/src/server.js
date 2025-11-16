@@ -15,8 +15,9 @@ const httpServer = createServer(app);
 // Initialize Socket.IO
 const io = new Server(httpServer, {
   cors: {
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
+    methods: ["GET", "POST"]
   },
 });
 
@@ -24,8 +25,23 @@ const io = new Server(httpServer, {
 connectDB();
 
 // Middleware
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://localhost:5174',
+].filter(Boolean);
+
 app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
 }));
 app.use(express.json());
@@ -61,6 +77,60 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/messages', messageRoutes);
 
+// Socket.IO Connection Handling
+const onlineUsers = new Map();
+
+io.on('connection', (socket) => {
+  console.log('User connected:', socket.id);
+
+  // User joins with their ID
+  socket.on('user:online', (userId) => {
+    onlineUsers.set(userId, socket.id);
+    socket.userId = userId;
+    io.emit('users:online', Array.from(onlineUsers.keys()));
+  });
+
+  // Join a conversation room
+  socket.on('conversation:join', ({ jobId, userId, otherUserId }) => {
+    const roomId = `${jobId}-${[userId, otherUserId].sort().join('-')}`;
+    socket.join(roomId);
+    console.log(`User ${userId} joined room: ${roomId}`);
+  });
+
+  // Send message
+  socket.on('message:send', (messageData) => {
+    const { jobId, senderId, receiverId } = messageData;
+    const roomId = `${jobId}-${[senderId, receiverId].sort().join('-')}`;
+    
+    // Emit to room
+    io.to(roomId).emit('message:receive', messageData);
+    
+    // Emit to receiver if online
+    const receiverSocketId = onlineUsers.get(receiverId);
+    if (receiverSocketId) {
+      io.to(receiverSocketId).emit('notification:new-message', messageData);
+    }
+  });
+
+  // Typing indicator
+  socket.on('typing:start', ({ roomId, userName }) => {
+    socket.to(roomId).emit('typing:show', userName);
+  });
+
+  socket.on('typing:stop', ({ roomId }) => {
+    socket.to(roomId).emit('typing:hide');
+  });
+
+  // User disconnect
+  socket.on('disconnect', () => {
+    if (socket.userId) {
+      onlineUsers.delete(socket.userId);
+      io.emit('users:online', Array.from(onlineUsers.keys()));
+    }
+    console.log('User disconnected:', socket.id);
+  });
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -83,4 +153,5 @@ const PORT = process.env.PORT || 5000;
 httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV}`);
+  console.log(`💬 Socket.IO ready for connections`);
 });
