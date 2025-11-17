@@ -12,6 +12,13 @@ dotenv.config();
 const app = express();
 const httpServer = createServer(app);
 
+// Allowed origins for CORS (used by both Express and Socket.IO)
+const allowedOrigins = [
+  process.env.CLIENT_URL,
+  'http://localhost:5173',
+  'http://localhost:5174',
+].filter(Boolean);
+
 // Initialize Socket.IO
 const io = new Server(httpServer, {
   cors: {
@@ -25,12 +32,6 @@ const io = new Server(httpServer, {
 connectDB();
 
 // Middleware
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  'http://localhost:5173',
-  'http://localhost:5174',
-].filter(Boolean);
-
 app.use(cors({
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
@@ -62,6 +63,19 @@ app.get('/api/health', (req, res) => {
     success: true,
     message: 'Server is running',
     timestamp: new Date().toISOString(),
+  });
+});
+
+// Clerk health check - reports whether critical Clerk env vars are present
+app.get('/api/health/clerk', (req, res) => {
+  const clerkSecret = !!process.env.CLERK_SECRET_KEY;
+  const clerkJwtKey = !!process.env.CLERK_JWT_KEY;
+
+  res.json({
+    success: true,
+    clerkSecretKeyPresent: clerkSecret,
+    clerkJwtKeyPresent: clerkJwtKey,
+    note: 'If either value is false, set the corresponding environment variable in your deployment settings (CLERK_SECRET_KEY and CLERK_JWT_KEY) and redeploy.'
   });
 });
 
@@ -154,4 +168,11 @@ httpServer.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
   console.log(`📍 Environment: ${process.env.NODE_ENV}`);
   console.log(`💬 Socket.IO ready for connections`);
+  // Clerk environment checks
+  if (!process.env.CLERK_SECRET_KEY) {
+    console.warn('⚠️ CLERK_SECRET_KEY is not set. Authentication will fail for protected routes.');
+  }
+  if (!process.env.CLERK_JWT_KEY) {
+    console.warn('⚠️ CLERK_JWT_KEY is not set. Token verification (JWK resolution) may fail. Set CLERK_JWT_KEY in your deployment environment.');
+  }
 });
