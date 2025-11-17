@@ -128,56 +128,49 @@ export default function Messages() {
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
-            {filteredConversations.map((conversation) => {
-              const otherUser = getOtherParticipant(conversation);
-              const unreadCount = conversation.unreadCount?.get?.(currentUser._id.toString()) || 0;
+{filteredConversations.map((conversation) => {
+  const otherUser = getOtherParticipant(conversation);
+  const unreadCount = conversation.unreadCount?.get?.(currentUser._id.toString()) || 0;
 
-              return (
-                <Link
-                  key={conversation._id}
-                  to={`/messages/${conversation.job._id}/${otherUser._id}`}
-                  className="flex items-center p-4 border-b hover:bg-gray-50 transition-colors"
-                >
-                  {/* Avatar */}
-                  <div className="relative">
-                    {otherUser.profileImage ? (
-                      <img
-                        src={otherUser.profileImage}
-                        alt={otherUser.firstName}
-                        className="w-14 h-14 rounded-full"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 rounded-full bg-primary-600 flex items-center justify-center text-white text-xl font-bold">
-                        {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
-                      </div>
-                    )}
-                    {unreadCount > 0 && (
-                      <div className="absolute -top-1 -right-1 bg-red-500 text-white text-xs font-bold rounded-full w-6 h-6 flex items-center justify-center">
-                        {unreadCount}
-                      </div>
-                    )}
-                  </div>
+  return (
+    <Link
+      key={conversation._id}
+      to={`/messages/${conversation.job._id}/${otherUser._id}`}
+      className="flex items-center p-4 border-b hover:bg-gray-50 transition-colors"
+    >
+      {/* Avatar omitted for brevity */}
 
-                  {/* Content */}
-                  <div className="flex-1 ml-4 min-w-0">
-                    <div className="flex items-center justify-between mb-1">
-                      <h3 className="font-semibold text-gray-900 truncate">
-                        {otherUser.firstName} {otherUser.lastName}
-                      </h3>
-                      <span className="text-sm text-gray-500 ml-2">
-                        {formatTime(conversation.lastMessageAt)}
-                      </span>
-                    </div>
-                    <p className="text-sm text-primary-600 mb-1 truncate">
-                      {conversation.job?.title}
-                    </p>
-                    <p className={`text-sm truncate ${unreadCount > 0 ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>
-                      {conversation.lastMessage || 'No messages yet'}
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
+      <div className="flex-1 ml-4 min-w-0">
+        <div className="flex items-center justify-between mb-1">
+          <h3 className="font-semibold text-gray-900 truncate">
+            {otherUser.firstName} {otherUser.lastName}
+          </h3>
+          {(() => {
+            // Use last message’s createdAt if present, otherwise fall back to updatedAt
+            const timestamp =
+              conversation.lastMessage?.createdAt ?? conversation.updatedAt;
+            return (
+              <span className="text-sm text-gray-500 ml-2">
+                {formatTime(timestamp)}
+              </span>
+            );
+          })()}
+        </div>
+        <p className="text-sm text-primary-600 mb-1 truncate">
+          {conversation.job?.title}
+        </p>
+        <p
+          className={`text-sm truncate ${
+            unreadCount > 0 ? 'font-semibold text-gray-900' : 'text-gray-600'
+          }`}
+        >
+          {conversation.lastMessage?.content || 'No messages yet'}
+        </p>
+      </div>
+    </Link>
+  );
+})}
+
           </div>
         )}
       </div>

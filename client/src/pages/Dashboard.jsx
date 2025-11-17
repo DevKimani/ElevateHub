@@ -242,7 +242,7 @@ export default function Dashboard() {
         <div className="card mb-6">
           <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
           <div className="grid md:grid-cols-2 gap-4">
-            {user.role === 'freelancer' ? (
+           {user.role === 'freelancer' ? (
               <>
                 <Link to="/jobs" className="btn-primary text-left p-4 block">
                   <div className="text-2xl mb-2">🔍</div>
@@ -254,11 +254,11 @@ export default function Dashboard() {
                   <div className="font-semibold">My Applications</div>
                   <div className="text-sm">Track your applications</div>
                 </Link>
-                <Link to="/profile" className="bg-gray-600 hover:bg-gray-700 text-white text-left p-4 block rounded-lg transition-colors">
-                  <div className="text-2xl mb-2">👤</div>
-                  <div className="font-semibold">Edit Profile</div>
-                  <div className="text-sm opacity-90">Update your information</div>
-                </Link>
+                <Link to="/complete-profile" className="bg-gray-600 hover:bg-gray-700 text-white text-left p-4 block rounded-lg transition-colors">
+          <div className="text-2xl mb-2">👤</div>
+          <div className="font-semibold">Edit Profile</div>
+          <div className="text-sm opacity-90">Update your information</div>
+        </Link>
                 {stats.acceptedApplications > 0 && (
                   <Link to="/messages" className="bg-blue-600 hover:bg-blue-700 text-white text-left p-4 block rounded-lg transition-colors">
                     <div className="text-2xl mb-2">💬</div>
@@ -279,11 +279,11 @@ export default function Dashboard() {
                   <div className="font-semibold">Manage Jobs</div>
                   <div className="text-sm">View your posted jobs</div>
                 </Link>
-                <Link to="/profile" className="bg-gray-600 hover:bg-gray-700 text-white text-left p-4 block rounded-lg transition-colors">
+                <Link to="/complete-profile" className="bg-gray-600 hover:bg-gray-700 text-white text-left p-4 block rounded-lg transition-colors">
                   <div className="text-2xl mb-2">👤</div>
                   <div className="font-semibold">Edit Profile</div>
                   <div className="text-sm opacity-90">Update your information</div>
-                </Link>
+        </Link>
                 {stats.totalApplications > 0 && (
                   <Link to="/messages" className="bg-blue-600 hover:bg-blue-700 text-white text-left p-4 block rounded-lg transition-colors">
                     <div className="text-2xl mb-2">💬</div>
