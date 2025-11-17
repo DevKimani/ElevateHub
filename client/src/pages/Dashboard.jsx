@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { userService } from '../services/userService';
@@ -13,25 +13,24 @@ export default function Dashboard() {
   const [error, setError] = useState('');
   const [stats, setStats] = useState({
     totalJobs: 0,
+    activeJobs: 0,
     totalApplications: 0,
     pendingApplications: 0,
     acceptedApplications: 0,
   });
   const [loading, setLoading] = useState(true);
+  const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    if (isSignedIn) {
-      fetchUserProfile();
-    }
-  }, [fetchUserProfile, isSignedIn]);
-
+  // Define fetchUserProfile BEFORE using it in useEffect
   const fetchUserProfile = useCallback(async () => {
     try {
       const token = await getToken();
       console.log('Dashboard: obtained token:', token);
       if (!token) {
-        setError('Authentication token not available');
-        setLoading(false);
+        if (isMountedRef.current) {
+          setError('Authentication token not available');
+          setLoading(false);
+        }
         return;
       }
 
@@ -39,6 +38,8 @@ export default function Dashboard() {
 
       const response = await userService.getCurrentUser();
       const userData = response.data;
+
+      if (!isMountedRef.current) return;
 
       // Check if profile is complete
       if (!userData.role || (userData.role === 'freelancer' && (!userData.skills || userData.skills.length === 0))) {
@@ -51,9 +52,13 @@ export default function Dashboard() {
       await fetchStats(userData.role, token);
     } catch (error) {
       console.error('Error fetching profile:', error);
-      setError(error.response?.data?.message || error.message || 'Failed to load profile');
+      if (isMountedRef.current) {
+        setError(error.response?.data?.message || error.message || 'Failed to load profile');
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
   }, [getToken, navigate]);
 
@@ -66,15 +71,21 @@ export default function Dashboard() {
         const appsResponse = await applicationService.getMyApplications();
         const applications = appsResponse.data;
         
+        if (!isMountedRef.current) return;
+        
         setStats({
           totalApplications: applications.length,
           pendingApplications: applications.filter(a => a.status === 'pending').length,
           acceptedApplications: applications.filter(a => a.status === 'accepted').length,
+          totalJobs: 0,
+          activeJobs: 0,
         });
       } else {
         // Fetch client jobs
         const jobsResponse = await jobService.getMyJobs();
         const jobs = jobsResponse.data;
+        
+        if (!isMountedRef.current) return;
         
         const totalApplications = jobs.reduce((sum, job) => sum + (job.applicationsCount || 0), 0);
         
@@ -82,12 +93,29 @@ export default function Dashboard() {
           totalJobs: jobs.length,
           activeJobs: jobs.filter(j => j.status === 'open').length,
           totalApplications: totalApplications,
+          pendingApplications: 0,
+          acceptedApplications: 0,
         });
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
     }
   };
+
+  // Now use fetchUserProfile in useEffect
+  useEffect(() => {
+    if (isSignedIn) {
+      fetchUserProfile();
+    }
+  }, [isSignedIn, fetchUserProfile]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   if (loading) {
     return (
@@ -156,8 +184,8 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* Profile Summary */}
-        <div className="grid md:grid-cols-3 gap-6 mb-6">
+        {/* Profile Summary - Fixed grid to show 4 cards properly */}
+        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
           <div className="card">
             <h3 className="text-lg font-semibold mb-2">Profile Completion</h3>
             <div className="flex items-center">
@@ -192,7 +220,7 @@ export default function Dashboard() {
           ) : (
             <>
               <div className="card">
-                <h3 className="text-lg font-semibold mb-2">Active Jobs</h3>
+                <h3 className="text-lg font-semibold mb-2">Total Jobs</h3>
                 <p className="text-3xl font-bold text-primary-600">{stats.totalJobs}</p>
                 <p className="text-sm text-gray-600">Jobs posted</p>
               </div>
@@ -203,8 +231,8 @@ export default function Dashboard() {
               </div>
               <div className="card">
                 <h3 className="text-lg font-semibold mb-2">Applications</h3>
-                <p className="text-3xl font-bold text-primary-600">{stats.totalApplications}</p>
-                <p className="text-sm text-gray-600">Received</p>
+                <p className="text-3xl font-bold text-blue-600">{stats.totalApplications}</p>
+                <p className="text-sm text-gray-600">Total received</p>
               </div>
             </>
           )}
@@ -226,6 +254,11 @@ export default function Dashboard() {
                   <div className="font-semibold">My Applications</div>
                   <div className="text-sm">Track your applications</div>
                 </Link>
+                <Link to="/profile" className="bg-gray-600 hover:bg-gray-700 text-white text-left p-4 block rounded-lg transition-colors">
+                  <div className="text-2xl mb-2">👤</div>
+                  <div className="font-semibold">Edit Profile</div>
+                  <div className="text-sm opacity-90">Update your information</div>
+                </Link>
                 {stats.acceptedApplications > 0 && (
                   <Link to="/messages" className="bg-blue-600 hover:bg-blue-700 text-white text-left p-4 block rounded-lg transition-colors">
                     <div className="text-2xl mb-2">💬</div>
@@ -245,6 +278,11 @@ export default function Dashboard() {
                   <div className="text-2xl mb-2">📋</div>
                   <div className="font-semibold">Manage Jobs</div>
                   <div className="text-sm">View your posted jobs</div>
+                </Link>
+                <Link to="/profile" className="bg-gray-600 hover:bg-gray-700 text-white text-left p-4 block rounded-lg transition-colors">
+                  <div className="text-2xl mb-2">👤</div>
+                  <div className="font-semibold">Edit Profile</div>
+                  <div className="text-sm opacity-90">Update your information</div>
                 </Link>
                 {stats.totalApplications > 0 && (
                   <Link to="/messages" className="bg-blue-600 hover:bg-blue-700 text-white text-left p-4 block rounded-lg transition-colors">

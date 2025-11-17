@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { useSocket } from '../context/SocketContext';
@@ -22,44 +22,17 @@ export default function Chat() {
   
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
+  const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    fetchData();
-  }, [jobId, otherUserId]);
+  // Memoize scrollToBottom to prevent recreating on every render
+  const scrollToBottom = useCallback(() => {
+    setTimeout(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 100);
+  }, []);
 
-  useEffect(() => {
-    if (socket && currentUser) {
-      // Join conversation room
-      socket.emit('conversation:join', {
-        jobId,
-        userId: currentUser._id,
-        otherUserId,
-      });
-
-      // Listen for new messages
-      socket.on('message:receive', (messageData) => {
-        setMessages(prev => [...prev, messageData]);
-        scrollToBottom();
-      });
-
-      // Listen for typing
-      socket.on('typing:show', (userName) => {
-        setTyping(true);
-      });
-
-      socket.on('typing:hide', () => {
-        setTyping(false);
-      });
-
-      return () => {
-        socket.off('message:receive');
-        socket.off('typing:show');
-        socket.off('typing:hide');
-      };
-    }
-  }, [socket, currentUser, jobId, otherUserId]);
-
-  const fetchData = async () => {
+  // Fetch data with proper cleanup
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getToken();
@@ -67,32 +40,95 @@ export default function Chat() {
 
       // Fetch current user
       const userResponse = await userService.getCurrentUser();
+      if (!isMountedRef.current) return;
       setCurrentUser(userResponse.data);
 
       // Fetch other user
       const otherUserResponse = await userService.getUserById(otherUserId);
+      if (!isMountedRef.current) return;
       setOtherUser(otherUserResponse.data);
 
       // Fetch messages
       const messagesResponse = await messageService.getMessages(jobId, otherUserId);
+      if (!isMountedRef.current) return;
       setMessages(messagesResponse.data);
       
       scrollToBottom();
     } catch (error) {
       console.error('Error fetching chat data:', error);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, [jobId, otherUserId, getToken, scrollToBottom]);
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-    }, 100);
-  };
+  // Initial data fetch
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
-  const handleTyping = () => {
-    if (!socket) return;
+  // Socket event handlers
+  useEffect(() => {
+    if (!socket || !currentUser) return;
+
+    const roomId = `${jobId}-${[currentUser._id, otherUserId].sort().join('-')}`;
+
+    // Join conversation room
+    socket.emit('conversation:join', {
+      jobId,
+      userId: currentUser._id,
+      otherUserId,
+    });
+
+    // Message handler with duplicate prevention
+    const handleNewMessage = (messageData) => {
+      setMessages(prev => {
+        // Prevent duplicate messages
+        const exists = prev.some(msg => msg._id === messageData._id);
+        if (exists) return prev;
+        return [...prev, messageData];
+      });
+      scrollToBottom();
+    };
+
+    // Typing handlers
+    const handleTypingShow = () => {
+      setTyping(true);
+    };
+
+    const handleTypingHide = () => {
+      setTyping(false);
+    };
+
+    // Attach listeners
+    socket.on('message:receive', handleNewMessage);
+    socket.on('typing:show', handleTypingShow);
+    socket.on('typing:hide', handleTypingHide);
+
+    // Cleanup function
+    return () => {
+      socket.emit('conversation:leave', { roomId });
+      socket.off('message:receive', handleNewMessage);
+      socket.off('typing:show', handleTypingShow);
+      socket.off('typing:hide', handleTypingHide);
+    };
+  }, [socket, currentUser, jobId, otherUserId, scrollToBottom]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleTyping = useCallback(() => {
+    if (!socket || !currentUser) return;
 
     const roomId = `${jobId}-${[currentUser._id, otherUserId].sort().join('-')}`;
     socket.emit('typing:start', { 
@@ -109,11 +145,14 @@ export default function Chat() {
     typingTimeoutRef.current = setTimeout(() => {
       socket.emit('typing:stop', { roomId });
     }, 1000);
-  };
+  }, [socket, currentUser, jobId, otherUserId]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !socket) return;
+
+    const messageContent = newMessage.trim();
+    setNewMessage(''); // Clear input immediately for better UX
 
     try {
       const token = await getToken();
@@ -122,13 +161,14 @@ export default function Chat() {
       const messageData = {
         receiverId: otherUserId,
         jobId,
-        content: newMessage.trim(),
+        content: messageContent,
       };
 
       // Send via API
       const response = await messageService.sendMessage(messageData);
 
-      // Emit via socket
+      // Only emit via socket, don't add to state here
+      // The socket listener will handle adding it
       socket.emit('message:send', {
         ...response.data,
         senderId: currentUser._id,
@@ -136,10 +176,11 @@ export default function Chat() {
         jobId,
       });
 
-      setNewMessage('');
       scrollToBottom();
     } catch (error) {
       console.error('Error sending message:', error);
+      // Restore message on error
+      setNewMessage(messageContent);
     }
   };
 

@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { applicationService } from '../services/applicationService';
 import { jobService } from '../services/jobService';
 import { setAuthToken } from '../services/api';
-import { ArrowLeft, User, Mail, MapPin, DollarSign, Calendar, CheckCircle, XCircle, MessageCircle } from 'lucide-react';
+import { ArrowLeft, User, Mail, MapPin, DollarSign, Calendar, CheckCircle, XCircle } from 'lucide-react';
 
 export default function JobApplications() {
   const { jobId } = useParams();
@@ -14,15 +14,10 @@ export default function JobApplications() {
   const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
+  const isMountedRef = useRef(true);
 
-    const fetchData = useCallback(async () => {
-      // ...existing code...
-    }, [getToken, jobId]);
-    useEffect(() => {
-      fetchData();
-    }, [jobId, fetchData]);
-
-  const fetchData = async () => {
+  // Single fetchData declaration with useCallback
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getToken();
@@ -30,21 +25,42 @@ export default function JobApplications() {
 
       // Fetch job details
       const jobResponse = await jobService.getJobById(jobId);
+      if (!isMountedRef.current) return;
       setJob(jobResponse.data);
 
       // Fetch applications
       const appsResponse = await applicationService.getJobApplications(jobId);
+      if (!isMountedRef.current) return;
       setApplications(appsResponse.data);
     } catch (error) {
       console.error('Error fetching data:', error);
+      // Optionally show error to user
+      if (isMountedRef.current) {
+        // You can set an error state here if needed
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, [getToken, jobId]);
+
+  // Fetch data on mount and when dependencies change
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const handleStatusUpdate = async (applicationId, status) => {
     const action = status === 'accepted' ? 'accept' : 'reject';
-    if (!confirm(`Are you sure you want to ${action} this application?`)) {
+    if (!window.confirm(`Are you sure you want to ${action} this application?`)) {
       return;
     }
 
@@ -61,9 +77,11 @@ export default function JobApplications() {
       alert(`Application ${status} successfully!`);
     } catch (error) {
       console.error('Error updating application:', error);
-      alert(`Failed to ${action} application`);
+      alert(`Failed to ${action} application. Please try again.`);
     } finally {
-      setActionLoading(null);
+      if (isMountedRef.current) {
+        setActionLoading(null);
+      }
     }
   };
 
@@ -154,12 +172,16 @@ export default function JobApplications() {
                 {/* Freelancer Header */}
                 <div className="flex justify-between items-start mb-6">
                   <div className="flex items-start">
-                    {application.freelancer.profileImage && (
+                    {application.freelancer.profileImage ? (
                       <img
                         src={application.freelancer.profileImage}
                         alt={application.freelancer.firstName}
-                        className="w-16 h-16 rounded-full mr-4"
+                        className="w-16 h-16 rounded-full mr-4 object-cover"
                       />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-primary-600 flex items-center justify-center text-white font-bold text-xl mr-4">
+                        {application.freelancer.firstName?.[0]}{application.freelancer.lastName?.[0]}
+                      </div>
                     )}
                     <div>
                       <h3 className="text-xl font-bold text-gray-900">
@@ -256,7 +278,7 @@ export default function JobApplications() {
                       <button
                         onClick={() => handleStatusUpdate(application._id, 'accepted')}
                         disabled={actionLoading === application._id}
-                        className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50"
+                        className="flex items-center px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <CheckCircle size={18} className="mr-2" />
                         {actionLoading === application._id ? 'Processing...' : 'Accept'}
@@ -264,7 +286,7 @@ export default function JobApplications() {
                       <button
                         onClick={() => handleStatusUpdate(application._id, 'rejected')}
                         disabled={actionLoading === application._id}
-                        className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50"
+                        className="flex items-center px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         <XCircle size={18} className="mr-2" />
                         {actionLoading === application._id ? 'Processing...' : 'Reject'}
