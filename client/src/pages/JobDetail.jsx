@@ -1,33 +1,34 @@
-import { useState, useEffect, useCallback } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { jobService } from '../services/jobService';
 import { userService } from '../services/userService';
+import { applicationService } from '../services/applicationService';
 import { setAuthToken } from '../services/api';
 import ApplyModal from '../components/ApplyModal';
-import { Briefcase, DollarSign, Calendar, MapPin, ArrowLeft, Mail, Phone } from 'lucide-react';
+import { Briefcase, DollarSign, Calendar, MapPin, ArrowLeft, Mail, Phone, CheckCircle } from 'lucide-react';
 
 export default function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { getToken, isSignedIn } = useAuth();
-  // const { user: clerkUser } = useUser();
+  const { user: clerkUser } = useUser();
   const [job, setJob] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
+  const [hasApplied, setHasApplied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
 
-    const fetchCurrentUser = useCallback(async () => {
-      // ...existing code...
-    }, [getToken]);
-    const fetchJobDetail = useCallback(async () => {
-      // ...existing code...
-    }, [id]);
-    useEffect(() => {
+  useEffect(() => {
+    fetchJobDetail();
+  }, [id]);
+
+  useEffect(() => {
+    if (isSignedIn) {
       fetchCurrentUser();
-      fetchJobDetail();
-    }, [id, isSignedIn, fetchCurrentUser, fetchJobDetail]);
+    }
+  }, [isSignedIn]);
 
   const fetchJobDetail = async () => {
     try {
@@ -48,20 +49,38 @@ export default function JobDetail() {
       setAuthToken(token);
       const response = await userService.getCurrentUser();
       setCurrentUser(response.data);
+      
+      // Check if user has already applied
+      if (response.data.role === 'freelancer') {
+        await checkIfApplied();
+      }
     } catch (err) {
       console.error('Error fetching user:', err);
     }
   };
 
+  const checkIfApplied = async () => {
+    try {
+      const token = await getToken();
+      setAuthToken(token);
+      const response = await applicationService.getMyApplications();
+      const applied = response.data.some(app => app.job._id === id);
+      setHasApplied(applied);
+    } catch (err) {
+      console.error('Error checking applications:', err);
+    }
+  };
+
   const handleApplySuccess = () => {
-    // Refresh job details to update application count
     fetchJobDetail();
+    setHasApplied(true);
   };
 
   const canApply = () => {
     if (!isSignedIn || !currentUser) return false;
     if (currentUser.role !== 'freelancer') return false;
     if (job?.status !== 'open') return false;
+    if (hasApplied) return false;
     return true;
   };
 
@@ -222,14 +241,23 @@ export default function JobDetail() {
                     Save Job
                   </button>
                 </>
+              ) : hasApplied ? (
+                <div className="text-center py-4">
+                  <CheckCircle size={48} className="mx-auto text-green-600 mb-3" />
+                  <p className="font-semibold text-gray-900 mb-1">Already Applied</p>
+                  <p className="text-sm text-gray-600 mb-4">You've submitted your application</p>
+                  <a href="/my-applications" className="w-full btn-secondary py-3 block text-center">
+                    View My Applications
+                  </a>
+                </div>
               ) : !isSignedIn ? (
                 <>
-                  <Link to="/sign-up" className="w-full btn-primary py-3 mb-4 block text-center">
+                  <a href="/sign-up" className="w-full btn-primary py-3 mb-4 block text-center">
                     Sign Up to Apply
-                  </Link>
-                  <Link to="/sign-in" className="w-full btn-secondary py-3 block text-center">
+                  </a>
+                  <a href="/sign-in" className="w-full btn-secondary py-3 block text-center">
                     Sign In
-                  </Link>
+                  </a>
                 </>
               ) : currentUser?.role === 'client' ? (
                 <div className="text-center text-gray-600">
