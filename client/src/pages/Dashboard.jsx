@@ -7,7 +7,7 @@ import { applicationService } from '../services/applicationService';
 import { setAuthToken } from '../services/api';
 
 export default function Dashboard() {
-  const { getToken } = useAuth();
+  const { getToken, isSignedIn } = useAuth();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
@@ -20,12 +20,15 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetchUserProfile();
-  }, [fetchUserProfile]);
+    if (isSignedIn) {
+      fetchUserProfile();
+    }
+  }, [fetchUserProfile, isSignedIn]);
 
   const fetchUserProfile = useCallback(async () => {
     try {
       const token = await getToken();
+      console.log('Dashboard: obtained token:', token);
       if (!token) {
         setError('Authentication token not available');
         setLoading(false);

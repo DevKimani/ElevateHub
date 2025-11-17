@@ -1,6 +1,11 @@
 import axios from 'axios';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const rawApiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+// Normalize API URL to ensure it points to the server's /api prefix
+let API_URL = rawApiUrl.replace(/\/$/, '');
+if (!API_URL.endsWith('/api')) {
+  API_URL = `${API_URL}/api`;
+}
 
 console.log('API URL:', API_URL);
 

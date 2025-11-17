@@ -3,6 +3,8 @@ import { clerkClient } from '@clerk/clerk-sdk-node';
 export const requireAuth = async (req, res, next) => {
   try {
     const token = req.headers.authorization?.replace('Bearer ', '');
+    console.log('Auth middleware: CLERK_SECRET_KEY set:', !!process.env.CLERK_SECRET_KEY);
+    console.log('Auth middleware: received Authorization header:', !!req.headers.authorization);
     
     if (!token) {
       return res.status(401).json({ 
@@ -13,6 +15,7 @@ export const requireAuth = async (req, res, next) => {
 
     // Verify the token with Clerk
     const payload = await clerkClient.verifyToken(token);
+    console.log('Auth middleware: token verified payload present:', !!payload);
     
     if (!payload) {
       return res.status(401).json({ 
