@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { applicationService } from '../services/applicationService';
@@ -15,9 +15,12 @@ export default function JobApplications() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(null);
 
-  useEffect(() => {
-    fetchData();
-  }, [jobId]);
+    const fetchData = useCallback(async () => {
+      // ...existing code...
+    }, [getToken, jobId]);
+    useEffect(() => {
+      fetchData();
+    }, [jobId, fetchData]);
 
   const fetchData = async () => {
     try {

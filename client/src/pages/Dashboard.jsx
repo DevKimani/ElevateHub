@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { userService } from '../services/userService';
@@ -10,6 +10,7 @@ export default function Dashboard() {
   const { getToken } = useAuth();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
+  const [error, setError] = useState('');
   const [stats, setStats] = useState({
     totalJobs: 0,
     totalApplications: 0,
@@ -20,11 +21,17 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchUserProfile();
-  }, []);
+  }, [fetchUserProfile]);
 
-  const fetchUserProfile = async () => {
+  const fetchUserProfile = useCallback(async () => {
     try {
       const token = await getToken();
+      if (!token) {
+        setError('Authentication token not available');
+        setLoading(false);
+        return;
+      }
+
       setAuthToken(token);
 
       const response = await userService.getCurrentUser();
@@ -37,15 +44,15 @@ export default function Dashboard() {
       }
 
       setUser(userData);
-      
       // Fetch stats based on role
       await fetchStats(userData.role, token);
     } catch (error) {
       console.error('Error fetching profile:', error);
+      setError(error.response?.data?.message || error.message || 'Failed to load profile');
     } finally {
       setLoading(false);
     }
-  };
+  }, [getToken, navigate]);
 
   const fetchStats = async (role, token) => {
     try {
@@ -90,11 +97,33 @@ export default function Dashboard() {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">Error: {error}</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="btn-primary"
+          >
+            Refresh Page
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-600">Failed to load profile. Please refresh.</p>
+          <button 
+            onClick={() => window.location.reload()}
+            className="btn-primary mt-4"
+          >
+            Refresh Page
+          </button>
         </div>
       </div>
     );

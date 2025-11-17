@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useAuth, useUser } from '@clerk/clerk-react';
 import { jobService } from '../services/jobService';
@@ -11,19 +11,23 @@ export default function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { getToken, isSignedIn } = useAuth();
-  const { user: clerkUser } = useUser();
+  // const { user: clerkUser } = useUser();
   const [job, setJob] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
 
-  useEffect(() => {
-    fetchJobDetail();
-    if (isSignedIn) {
+    const fetchCurrentUser = useCallback(async () => {
+      // ...existing code...
+    }, [getToken]);
+    const fetchJobDetail = useCallback(async () => {
+      // ...existing code...
+    }, [id]);
+    useEffect(() => {
       fetchCurrentUser();
-    }
-  }, [id, isSignedIn]);
+      fetchJobDetail();
+    }, [id, isSignedIn, fetchCurrentUser, fetchJobDetail]);
 
   const fetchJobDetail = async () => {
     try {

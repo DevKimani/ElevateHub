@@ -8,7 +8,7 @@ import Toast from './Toast';
 
 export default function ApplyModal({ job, isOpen, onClose, onSuccess }) {
   const { getToken } = useAuth();
-  const { toast, showToast, hideToast } = useToast();
+  const { /* toast, showToast, hideToast */ } = useToast();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 

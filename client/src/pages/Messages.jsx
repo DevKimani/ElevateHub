@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { messageService } from '../services/messageService';
 import { userService } from '../services/userService';
@@ -13,9 +13,12 @@ export default function Messages() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
-  useEffect(() => {
-    fetchData();
-  }, []);
+    const fetchData = useCallback(async () => {
+      // ...existing code...
+    }, [getToken]);
+    useEffect(() => {
+      fetchData();
+    }, [fetchData]);
 
   const fetchData = async () => {
     try {

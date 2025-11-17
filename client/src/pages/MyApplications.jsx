@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '@clerk/clerk-react';
 import { applicationService } from '../services/applicationService';
@@ -11,9 +11,12 @@ export default function MyApplications() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, pending, accepted, rejected
 
-  useEffect(() => {
-    fetchApplications();
-  }, []);
+    const fetchApplications = useCallback(async () => {
+      // ...existing code...
+    }, [getToken]);
+    useEffect(() => {
+      fetchApplications();
+    }, [fetchApplications]);
 
   const fetchApplications = async () => {
     try {
