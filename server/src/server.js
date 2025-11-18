@@ -17,7 +17,13 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:5173',
   'http://localhost:5174',
+  'https://elevatehubportal.vercel.app',  // ✅ ADD YOUR VERCEL DOMAIN
+  // Add any other Vercel preview URLs if needed
+  // 'https://elevatehub-*.vercel.app',
 ].filter(Boolean);
+
+// Log allowed origins on startup for debugging
+console.log('📋 Allowed CORS origins:', allowedOrigins);
 
 // Initialize Socket.IO
 const io = new Server(httpServer, {
@@ -40,11 +46,19 @@ app.use(cors({
     if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
+      console.error(`❌ CORS blocked origin: ${origin}`);
+      console.error(`   Allowed origins: ${allowedOrigins.join(', ')}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
   credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
 }));
+
+// Handle preflight requests
+app.options('*', cors());
+
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
