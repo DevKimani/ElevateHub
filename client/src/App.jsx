@@ -1,6 +1,7 @@
 import { Routes, Route } from 'react-router-dom';
 import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react';
 import { Link } from 'react-router-dom';
+import HomePage from './pages/HomePage';
 import Dashboard from './pages/Dashboard';
 import CompleteProfile from './pages/CompleteProfile';
 import SignUpPage from './pages/SignUp';
@@ -13,6 +14,7 @@ import MyApplications from './pages/MyApplications';
 import JobApplications from './pages/JobApplications';
 import Messages from './pages/Messages';
 import Chat from './pages/Chat';
+
 
 function App() {
   return (

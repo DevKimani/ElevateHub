@@ -1,18 +1,26 @@
 import User from '../models/User.js';
-import { clerkClient } from '@clerk/clerk-sdk-node';
+import { createClerkClient } from '@clerk/backend';
+
+const clerkClient = createClerkClient({
+  secretKey: process.env.CLERK_SECRET_KEY
+});
 
 // @desc    Get or Create current user
 // @route   GET /api/users/me
 // @access  Private
 export const getCurrentUser = async (req, res) => {
   try {
+    console.log('getCurrentUser: userId from token:', req.userId);
+    
     // Get user info from Clerk
     const clerkUser = await clerkClient.users.getUser(req.userId);
+    console.log('getCurrentUser: Clerk user fetched:', clerkUser.id);
     
     // Check if user exists in our database
     let user = await User.findOne({ clerkId: req.userId });
     
     if (!user) {
+      console.log('getCurrentUser: User not found in DB, creating new user');
       // Create new user if doesn't exist
       user = await User.create({
         clerkId: req.userId,
@@ -22,6 +30,9 @@ export const getCurrentUser = async (req, res) => {
         profileImage: clerkUser.imageUrl || '',
         role: 'freelancer', // Default role
       });
+      console.log('getCurrentUser: New user created:', user._id);
+    } else {
+      console.log('getCurrentUser: Existing user found:', user._id);
     }
     
     res.status(200).json({
@@ -53,10 +64,13 @@ export const updateCurrentUser = async (req, res) => {
       portfolio,
     } = req.body;
 
+    console.log('updateCurrentUser: userId:', req.userId);
+
     // Find user
     const user = await User.findOne({ clerkId: req.userId });
 
     if (!user) {
+      console.log('updateCurrentUser: User not found in DB');
       return res.status(404).json({
         success: false,
         message: 'User not found',
@@ -73,6 +87,7 @@ export const updateCurrentUser = async (req, res) => {
     if (portfolio) user.portfolio = portfolio;
 
     await user.save();
+    console.log('updateCurrentUser: User updated successfully');
 
     res.status(200).json({
       success: true,
@@ -94,14 +109,19 @@ export const updateCurrentUser = async (req, res) => {
 // @access  Public
 export const getUserById = async (req, res) => {
   try {
+    console.log('getUserById: Fetching user with ID:', req.params.id);
+    
     const user = await User.findById(req.params.id).select('-__v');
 
     if (!user) {
+      console.log('getUserById: User not found');
       return res.status(404).json({
         success: false,
         message: 'User not found',
       });
     }
+
+    console.log('getUserById: User found:', user._id);
 
     res.status(200).json({
       success: true,

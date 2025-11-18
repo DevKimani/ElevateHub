@@ -1,54 +1,75 @@
-import { clerkClient } from '@clerk/clerk-sdk-node';
+import { createClerkClient } from '@clerk/backend';
+
+const clerkClient = createClerkClient({
+  secretKey: process.env.CLERK_SECRET_KEY
+});
 
 export const requireAuth = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const authHeader = req.headers.authorization;
     console.log('Auth middleware: CLERK_SECRET_KEY set:', !!process.env.CLERK_SECRET_KEY);
-    console.log('Auth middleware: received Authorization header:', !!req.headers.authorization);
+    console.log('Auth middleware: received Authorization header:', !!authHeader);
     
-    if (!token) {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return res.status(401).json({ 
         success: false, 
         message: 'No authentication token provided' 
       });
     }
 
-    // Verify the token with Clerk
-    const payload = await clerkClient.verifyToken(token);
-    console.log('Auth middleware: token verified payload present:', !!payload);
-    
-    if (!payload) {
+    const token = authHeader.replace('Bearer ', '');
+    console.log('Auth middleware: token extracted, length:', token.length);
+
+    try {
+      // Verify token with new Clerk SDK
+      const sessionClaims = await clerkClient.verifyToken(token);
+      
+      console.log('Auth middleware: token verified, userId:', sessionClaims.sub);
+      
+      // Attach user ID to request
+      req.userId = sessionClaims.sub;
+      next();
+    } catch (verifyError) {
+      console.error('Token verification failed:', verifyError.message);
       return res.status(401).json({ 
         success: false, 
-        message: 'Invalid token' 
+        message: 'Invalid or expired token',
+        error: process.env.NODE_ENV === 'development' ? verifyError.message : undefined
       });
     }
-
-    // Attach user ID to request
-    req.userId = payload.sub;
-    next();
   } catch (error) {
     console.error('Auth middleware error:', error);
     res.status(401).json({ 
       success: false, 
-      message: 'Authentication failed' 
+      message: 'Authentication failed',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined
     });
   }
 };
 
 export const optionalAuth = async (req, res, next) => {
   try {
-    const token = req.headers.authorization?.replace('Bearer ', '');
+    const authHeader = req.headers.authorization;
     
-    if (token) {
-      const payload = await clerkClient.verifyToken(token);
-      if (payload) {
-        req.userId = payload.sub;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      
+      try {
+        const sessionClaims = await clerkClient.verifyToken(token);
+        
+        if (sessionClaims && sessionClaims.sub) {
+          req.userId = sessionClaims.sub;
+          console.log('Optional auth: userId set:', sessionClaims.sub);
+        }
+      } catch (error) {
+        // Continue without auth if token is invalid
+        console.log('Optional auth: token verification failed, continuing without auth');
       }
     }
     next();
   } catch (error) {
-    // Continue without auth
+    // Continue without auth on any error
+    console.log('Optional auth error:', error.message);
     next();
   }
 };

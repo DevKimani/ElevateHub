@@ -86,8 +86,6 @@ export default function Chat() {
         content: messageContent,
       };
 
-      const response = await messageService.sendMessage(messageData);
-
       // Send via API
       const response = await messageService.sendMessage(messageData);
 
@@ -106,6 +104,20 @@ export default function Chat() {
       setNewMessage(messageContent); // restore message on error
     }
   };
+
+  const handleTyping = useCallback(() => {
+    if (!socket) return;
+    setTyping(true);
+    clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(() => setTyping(false), 1000);
+
+    socket.emit('typing', {
+      conversationId,
+      senderId: currentUser?._id,
+      receiverId: otherUserId,
+      typing: true,
+    });
+  }, [socket, conversationId, currentUser, otherUserId]);
 
   const formatTime = (date) => {
     return new Date(date).toLocaleTimeString('en-US', {
