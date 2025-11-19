@@ -4,7 +4,6 @@ import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import connectDB from './config/db.js';
-import transactionRoutes from './routes/transactionRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -18,21 +17,22 @@ const allowedOrigins = [
   process.env.CLIENT_URL,
   'http://localhost:5173',
   'http://localhost:5174',
-  'https://elevatehubportal.vercel.app',  // ✅ ADD YOUR VERCEL DOMAIN
-  // Add any other Vercel preview URLs if needed
-  // 'https://elevatehub-*.vercel.app',
+  'https://elevatehubportal.vercel.app',
 ].filter(Boolean);
 
 // Log allowed origins on startup for debugging
 console.log('📋 Allowed CORS origins:', allowedOrigins);
 
-// Initialize Socket.IO
+// Initialize Socket.IO with proper CORS
 const io = new Server(httpServer, {
   cors: {
     origin: allowedOrigins,
     credentials: true,
-    methods: ["GET", "POST"]
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   },
+  transports: ['polling', 'websocket'],
+  pingTimeout: 60000,
+  pingInterval: 25000,
 });
 
 // Connect to MongoDB
@@ -96,6 +96,7 @@ import userRoutes from './routes/userRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 import applicationRoutes from './routes/applicationRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
+import transactionRoutes from './routes/transactionRoutes.js';
 
 // API Routes
 app.use('/api/users', userRoutes);
@@ -103,6 +104,7 @@ app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/transactions', transactionRoutes);
+
 // Socket.IO Connection Handling
 const onlineUsers = new Map();
 
@@ -114,6 +116,7 @@ io.on('connection', (socket) => {
     onlineUsers.set(userId, socket.id);
     socket.userId = userId;
     io.emit('users:online', Array.from(onlineUsers.keys()));
+    console.log(`User ${userId} is now online. Total online: ${onlineUsers.size}`);
   });
 
   // Join a conversation room
@@ -121,6 +124,12 @@ io.on('connection', (socket) => {
     const roomId = `${jobId}-${[userId, otherUserId].sort().join('-')}`;
     socket.join(roomId);
     console.log(`User ${userId} joined room: ${roomId}`);
+  });
+
+  // Leave a conversation room
+  socket.on('conversation:leave', ({ roomId }) => {
+    socket.leave(roomId);
+    console.log(`User left room: ${roomId}`);
   });
 
   // Send message
@@ -152,8 +161,14 @@ io.on('connection', (socket) => {
     if (socket.userId) {
       onlineUsers.delete(socket.userId);
       io.emit('users:online', Array.from(onlineUsers.keys()));
+      console.log(`User ${socket.userId} disconnected. Total online: ${onlineUsers.size}`);
     }
     console.log('User disconnected:', socket.id);
+  });
+
+  // Handle errors
+  socket.on('error', (error) => {
+    console.error('Socket error:', error);
   });
 });
 
