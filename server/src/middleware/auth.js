@@ -1,4 +1,4 @@
-import { createClerkClient } from '@clerk/backend';
+import { createClerkClient, verifyToken } from '@clerk/backend';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -21,8 +21,12 @@ export const requireAuth = async (req, res, next) => {
     console.log('Auth middleware: token extracted, length:', token.length);
 
     try {
-      // Verify token with new Clerk SDK
-      const sessionClaims = await clerkClient.verifyToken(token);
+      // Use the standalone verifyToken function from @clerk/backend
+      const sessionClaims = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY,
+        // Optional: specify authorized parties if needed
+        // authorizedParties: ['https://elevatehubportal.vercel.app']
+      });
       
       console.log('Auth middleware: token verified, userId:', sessionClaims.sub);
       
@@ -55,7 +59,9 @@ export const optionalAuth = async (req, res, next) => {
       const token = authHeader.replace('Bearer ', '');
       
       try {
-        const sessionClaims = await clerkClient.verifyToken(token);
+        const sessionClaims = await verifyToken(token, {
+          secretKey: process.env.CLERK_SECRET_KEY,
+        });
         
         if (sessionClaims && sessionClaims.sub) {
           req.userId = sessionClaims.sub;
