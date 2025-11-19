@@ -154,7 +154,13 @@ export default function MyApplications() {
           </div>
         ) : (
           <div className="space-y-6">
-            {applications.map((application) => (
+            {applications.map((application) => {
+              // Skip if application or job is missing
+              if (!application || !application.job) {
+                return null;
+              }
+              
+              return (
               <div
                 key={application._id}
                 className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100"
@@ -170,7 +176,7 @@ export default function MyApplications() {
                         {application.job.title}
                       </Link>
                       <p className="text-gray-600 mt-1">
-                        Posted by: {application.job.client?.firstName} {application.job.client?.lastName}
+                        Posted by: {application.job.postedBy?.firstName} {application.job.postedBy?.lastName}
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -237,9 +243,9 @@ export default function MyApplications() {
                       >
                         View Job
                       </Link>
-                      {application.status === 'accepted' && (
+                      {application.status === 'accepted' && application.job.postedBy && (
                         <Link
-                          to={`/messages/${application.job._id}/${application.job.client._id}`}
+                          to={`/messages/${application.job._id}/${application.job.postedBy._id}`}
                           className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                         >
                           Message Client
@@ -249,7 +255,8 @@ export default function MyApplications() {
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
