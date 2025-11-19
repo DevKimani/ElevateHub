@@ -39,14 +39,6 @@ function App() {
                 <UserButton afterSignOutUrl="/" />
               </SignedIn>
               <SignedOut>
-                {/*
-                 * Navigation for unauthenticated users should direct each action to the
-                 * appropriate page. The original implementation pointed both the
-                 * "Sign In" and "Sign Up" buttons to the sign‑up route, which
-                 * prevented users from reaching the sign‑in form. Update the
-                 * "Sign In" link to target the `/sign-in` route while leaving
-                 * the "Sign Up" link pointed at `/sign-up`.
-                 */}
                 <Link to="/sign-in" className="btn-secondary">
                   Sign In
                 </Link>
@@ -95,6 +87,17 @@ function App() {
           <Route path="/my-applications" element={
             <SignedIn>
               <MyApplications />
+            </SignedIn>
+          } />
+          {/* Messages routes - ADD THESE */}
+          <Route path="/messages" element={
+            <SignedIn>
+              <Messages />
+            </SignedIn>
+          } />
+          <Route path="/messages/:jobId/:otherUserId" element={
+            <SignedIn>
+              <Chat />
             </SignedIn>
           } />
         </Routes>

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@clerk/clerk-react';
 import { messageService } from '../services/messageService';
 import { userService } from '../services/userService';
@@ -12,12 +12,9 @@ export default function Messages() {
   const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getToken();
@@ -25,19 +22,37 @@ export default function Messages() {
 
       // Fetch current user
       const userResponse = await userService.getCurrentUser();
+      if (!isMountedRef.current) return;
       setCurrentUser(userResponse.data);
 
       // Fetch conversations
       const convResponse = await messageService.getConversations();
-      setConversations(convResponse.data);
+      if (!isMountedRef.current) return;
+      setConversations(convResponse.data || []);
     } catch (error) {
       console.error('Error fetching messages:', error);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, [getToken]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const formatTime = (date) => {
+    if (!date) return '';
+    
     const messageDate = new Date(date);
     const now = new Date();
     const diffInHours = (now - messageDate) / (1000 * 60 * 60);
@@ -59,11 +74,15 @@ export default function Messages() {
   };
 
   const getOtherParticipant = (conversation) => {
-    return conversation.participants.find(p => p._id !== currentUser._id);
+    if (!conversation?.participants || !currentUser?._id) return null;
+    return conversation.participants.find(p => p?._id !== currentUser._id);
   };
 
   const filteredConversations = conversations.filter(conv => {
+    if (!conv) return false;
     const otherUser = getOtherParticipant(conv);
+    if (!otherUser) return false;
+    
     const searchLower = searchQuery.toLowerCase();
     return (
       otherUser?.firstName?.toLowerCase().includes(searchLower) ||
@@ -128,49 +147,73 @@ export default function Messages() {
           </div>
         ) : (
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
-{filteredConversations.map((conversation) => {
-  const otherUser = getOtherParticipant(conversation);
-  const unreadCount = conversation.unreadCount?.get?.(currentUser._id.toString()) || 0;
+            {filteredConversations.map((conversation) => {
+              const otherUser = getOtherParticipant(conversation);
+              
+              // Skip if missing required data
+              if (!otherUser || !conversation.job) {
+                return null;
+              }
+              
+              // Handle unreadCount which might be a Map or plain object
+              let unreadCount = 0;
+              if (conversation.unreadCount) {
+                if (typeof conversation.unreadCount.get === 'function') {
+                  unreadCount = conversation.unreadCount.get(currentUser._id.toString()) || 0;
+                } else if (typeof conversation.unreadCount === 'object') {
+                  unreadCount = conversation.unreadCount[currentUser._id.toString()] || 0;
+                }
+              }
 
-  return (
-    <Link
-      key={conversation._id}
-      to={`/messages/${conversation.job._id}/${otherUser._id}`}
-      className="flex items-center p-4 border-b hover:bg-gray-50 transition-colors"
-    >
-      {/* Avatar omitted for brevity */}
+              return (
+                <Link
+                  key={conversation._id}
+                  to={`/messages/${conversation.job._id}/${otherUser._id}`}
+                  className="flex items-center p-4 border-b hover:bg-gray-50 transition-colors"
+                >
+                  {/* Avatar */}
+                  {otherUser.profileImage ? (
+                    <img
+                      src={otherUser.profileImage}
+                      alt={otherUser.firstName}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-primary-600 flex items-center justify-center text-white font-bold">
+                      {otherUser.firstName?.[0]}{otherUser.lastName?.[0]}
+                    </div>
+                  )}
 
-      <div className="flex-1 ml-4 min-w-0">
-        <div className="flex items-center justify-between mb-1">
-          <h3 className="font-semibold text-gray-900 truncate">
-            {otherUser.firstName} {otherUser.lastName}
-          </h3>
-          {(() => {
-            // Use last message’s createdAt if present, otherwise fall back to updatedAt
-            const timestamp =
-              conversation.lastMessage?.createdAt ?? conversation.updatedAt;
-            return (
-              <span className="text-sm text-gray-500 ml-2">
-                {formatTime(timestamp)}
-              </span>
-            );
-          })()}
-        </div>
-        <p className="text-sm text-primary-600 mb-1 truncate">
-          {conversation.job?.title}
-        </p>
-        <p
-          className={`text-sm truncate ${
-            unreadCount > 0 ? 'font-semibold text-gray-900' : 'text-gray-600'
-          }`}
-        >
-          {conversation.lastMessage?.content || 'No messages yet'}
-        </p>
-      </div>
-    </Link>
-  );
-})}
-
+                  <div className="flex-1 ml-4 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <h3 className="font-semibold text-gray-900 truncate">
+                        {otherUser.firstName} {otherUser.lastName}
+                      </h3>
+                      <span className="text-sm text-gray-500 ml-2">
+                        {formatTime(conversation.lastMessage?.createdAt || conversation.updatedAt)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-primary-600 mb-1 truncate">
+                      {conversation.job?.title}
+                    </p>
+                    <div className="flex items-center justify-between">
+                      <p
+                        className={`text-sm truncate ${
+                          unreadCount > 0 ? 'font-semibold text-gray-900' : 'text-gray-600'
+                        }`}
+                      >
+                        {conversation.lastMessage?.content || 'No messages yet'}
+                      </p>
+                      {unreadCount > 0 && (
+                        <span className="ml-2 bg-primary-600 text-white text-xs font-bold px-2 py-1 rounded-full">
+                          {unreadCount}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
           </div>
         )}
       </div>
