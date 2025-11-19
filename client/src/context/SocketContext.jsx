@@ -1,65 +1,87 @@
-import { useEffect, useState, useContext } from 'react'; // <-- Added useContext
-import { SocketContext } from './socketUtils';
+import { createContext, useContext, useEffect, useState } from 'react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import { io } from 'socket.io-client';
-import { useUser } from '@clerk/clerk-react';
 
-/**
- * SocketProvider component manages the WebSocket connection lifecycle
- * and provides the socket, connection status, and online users to the component tree.
- */
+const SocketContext = createContext(null);
+
+export const useSocket = () => {
+  const context = useContext(SocketContext);
+  // Return default values if context is not available
+  if (!context) {
+    return { socket: null, onlineUsers: [] };
+  }
+  return context;
+};
+
 export const SocketProvider = ({ children }) => {
+  const { isSignedIn } = useAuth();
   const { user } = useUser();
   const [socket, setSocket] = useState(null);
   const [onlineUsers, setOnlineUsers] = useState([]);
-  const [connected, setConnected] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      // Connect to socket server
-      const socketURL = import.meta.env.VITE_API_URL?.replace('/api', '') || 'http://localhost:5000';
-      const newSocket = io(socketURL, {
-        transports: ['websocket', 'polling'],
-        // Include user ID in the handshake query for identification on the server
-        query: { userId: user.id }
+    // Only connect if user is signed in
+    if (!isSignedIn || !user) {
+      if (socket) {
+        socket.disconnect();
+        setSocket(null);
+      }
+      return;
+    }
+
+    // Connect to socket server
+    const socketUrl = import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000';
+    
+    console.log('Attempting socket connection to:', socketUrl);
+    
+    let newSocket;
+    
+    try {
+      newSocket = io(socketUrl, {
+        withCredentials: true,
+        transports: ['polling', 'websocket'],
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 2000,
+        timeout: 10000,
+        autoConnect: true,
       });
 
       newSocket.on('connect', () => {
-        console.log('Socket connected:', newSocket.id);
-        setConnected(true);
-        // Server will handle 'user:online' logic based on the query. 
-        // No need for a manual 'user:online' emit here if using the query.
-      });
-
-      newSocket.on('disconnect', () => {
-        console.log('Socket disconnected');
-        setConnected(false);
+        console.log('✅ Socket connected:', newSocket.id);
+        newSocket.emit('user:online', user.id);
       });
 
       newSocket.on('users:online', (users) => {
         setOnlineUsers(users);
       });
 
-      setSocket(newSocket);
+      newSocket.on('connect_error', (error) => {
+        console.warn('⚠️ Socket connection error:', error.message);
+        // Don't crash the app, just log the error
+      });
 
-      return () => {
-        // Cleanup on unmount or user change
-        newSocket.disconnect();
-      };
-    } else {
-      // Ensure socket is disconnected if user logs out
-      if (socket) {
-        socket.disconnect();
-        setSocket(null);
-        setConnected(false);
-        setOnlineUsers([]);
-      }
+      newSocket.on('disconnect', (reason) => {
+        console.log('Socket disconnected:', reason);
+      });
+
+      setSocket(newSocket);
+    } catch (error) {
+      console.error('Failed to initialize socket:', error);
+      // App continues to work without socket
     }
-    // Added socket to dependency array for cleanup check
-  }, [user, socket]); 
+
+    // Cleanup on unmount
+    return () => {
+      if (newSocket) {
+        newSocket.disconnect();
+      }
+      setSocket(null);
+    };
+  }, [isSignedIn, user?.id]);
 
   const value = {
     socket,
-    connected,
     onlineUsers,
   };
 
@@ -70,7 +92,4 @@ export const SocketProvider = ({ children }) => {
   );
 };
 
-
-export const useSocket = () => {
-    return useContext(SocketContext);
-};
+export default SocketContext;
