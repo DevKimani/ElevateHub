@@ -206,7 +206,7 @@ export default function HomePage() {
             <div>
               <h3 className="text-white text-xl font-bold mb-4">ElevateHub</h3>
               <p className="text-gray-400">
-                Connecting talent with opportunity across Kenya and beyond.
+                Connecting talent with opportunity across Africa and beyond.
               </p>
             </div>
             <div>
@@ -232,7 +232,7 @@ export default function HomePage() {
             </div>
           </div>
           <div className="border-t border-gray-800 mt-8 pt-8 text-center">
-            <p>&copy; 2024 ElevateHub. All rights reserved.</p>
+            <p>&copy; 2025 ElevateHub. All rights reserved.</p>
           </div>
         </div>
       </footer>
