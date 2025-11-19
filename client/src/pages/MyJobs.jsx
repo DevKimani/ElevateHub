@@ -1,59 +1,51 @@
-import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@clerk/clerk-react';
-import { jobService } from '../services/jobService';
+import { Link } from 'react-router-dom';
+import { applicationService } from '../services/applicationService';
 import { setAuthToken } from '../services/api';
-import { Briefcase, DollarSign, Calendar, Plus, Edit, Trash2 } from 'lucide-react';
+import { Briefcase, Calendar, DollarSign, Clock, CheckCircle, XCircle, AlertCircle } from 'lucide-react';
 
-export default function MyJobs() {
+export default function MyApplications() {
   const { getToken } = useAuth();
-  const [jobs, setJobs] = useState([]);
+  const [applications, setApplications] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [deleteLoading, setDeleteLoading] = useState(null);
+  const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    fetchMyJobs();
-  }, []);
-
-  const fetchMyJobs = async () => {
+  // Single fetchApplications declaration with useCallback
+  const fetchApplications = useCallback(async () => {
     try {
       setLoading(true);
       const token = await getToken();
       setAuthToken(token);
 
-      const response = await jobService.getMyJobs();
-      setJobs(response.data);
+      const response = await applicationService.getMyApplications();
+      if (!isMountedRef.current) return;
+      setApplications(response.data);
     } catch (error) {
-      console.error('Error fetching jobs:', error);
+      console.error('Error fetching applications:', error);
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, [getToken]);
 
-  const handleDelete = async (jobId) => {
-    if (!confirm('Are you sure you want to delete this job?')) {
-      return;
-    }
+  useEffect(() => {
+    fetchApplications();
+  }, [fetchApplications]);
 
-    try {
-      setDeleteLoading(jobId);
-      const token = await getToken();
-      setAuthToken(token);
-
-      await jobService.deleteJob(jobId);
-      setJobs(jobs.filter(job => job._id !== jobId));
-    } catch (error) {
-      console.error('Error deleting job:', error);
-      alert('Failed to delete job');
-    } finally {
-      setDeleteLoading(null);
-    }
-  };
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+    };
+  }, []);
 
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('en-US', {
       year: 'numeric',
-      month: 'short',
+      month: 'long',
       day: 'numeric',
     });
   };
@@ -66,18 +58,25 @@ export default function MyJobs() {
     }).format(amount);
   };
 
+  const getStatusIcon = (status) => {
+    switch (status) {
+      case 'accepted':
+        return <CheckCircle className="text-green-500" size={20} />;
+      case 'rejected':
+        return <XCircle className="text-red-500" size={20} />;
+      default:
+        return <Clock className="text-yellow-500" size={20} />;
+    }
+  };
+
   const getStatusColor = (status) => {
     switch (status) {
-      case 'open':
+      case 'accepted':
         return 'bg-green-100 text-green-800';
-      case 'in_progress':
-        return 'bg-blue-100 text-blue-800';
-      case 'completed':
-        return 'bg-gray-100 text-gray-800';
-      case 'closed':
+      case 'rejected':
         return 'bg-red-100 text-red-800';
       default:
-        return 'bg-gray-100 text-gray-800';
+        return 'bg-yellow-100 text-yellow-800';
     }
   };
 
@@ -86,145 +85,178 @@ export default function MyJobs() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading your jobs...</p>
+          <p className="text-gray-600">Loading your applications...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="flex justify-between items-center mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">
-              My Posted Jobs
-            </h1>
-            <p className="text-gray-600">
-              Manage your job postings ({jobs.length} total)
-            </p>
-          </div>
-          <Link to="/post-job" className="btn-primary flex items-center">
-            <Plus size={20} className="mr-2" />
-            Post New Job
-          </Link>
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold text-gray-900 mb-2">My Applications</h1>
+          <p className="text-gray-600">Track the status of your job applications</p>
         </div>
 
-        {/* Jobs List */}
-        {jobs.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <Briefcase size={48} className="mx-auto text-gray-400 mb-4" />
+        {/* Stats Summary */}
+        <div className="grid md:grid-cols-3 gap-6 mb-8">
+          <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Total Applications</p>
+                <p className="text-3xl font-bold text-gray-900">{applications.length}</p>
+              </div>
+              <Briefcase size={40} className="text-primary-600" />
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Pending</p>
+                <p className="text-3xl font-bold text-yellow-600">
+                  {applications.filter(a => a.status === 'pending').length}
+                </p>
+              </div>
+              <Clock size={40} className="text-yellow-600" />
+            </div>
+          </div>
+          <div className="bg-white rounded-xl shadow-md p-6 border border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm text-gray-600 mb-1">Accepted</p>
+                <p className="text-3xl font-bold text-green-600">
+                  {applications.filter(a => a.status === 'accepted').length}
+                </p>
+              </div>
+              <CheckCircle size={40} className="text-green-600" />
+            </div>
+          </div>
+        </div>
+
+        {/* Applications List */}
+        {applications.length === 0 ? (
+          <div className="bg-white rounded-xl shadow-md p-12 text-center">
+            <AlertCircle size={48} className="mx-auto text-gray-400 mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              No jobs posted yet
+              No applications yet
             </h3>
-            <p className="text-gray-600 mb-4">
-              Start by posting your first job to find talented freelancers
+            <p className="text-gray-600 mb-6">
+              Start applying to jobs to see your applications here
             </p>
-            <Link to="/post-job" className="btn-primary inline-flex items-center">
-              <Plus size={20} className="mr-2" />
-              Post Your First Job
+            <Link
+              to="/jobs"
+              className="inline-block px-6 py-3 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors"
+            >
+              Browse Jobs
             </Link>
           </div>
         ) : (
-          <div className="space-y-4">
-            {jobs.map((job) => (
+          <div className="space-y-6">
+            {applications.map((application) => {
+              // Skip if application or job is missing
+              if (!application || !application.job) {
+                return null;
+              }
+              
+              return (
               <div
-                key={job._id}
-                className="bg-white rounded-lg shadow-md p-6"
+                key={application._id}
+                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100"
               >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <Link
-                      to={`/jobs/${job._id}`}
-                      className="text-xl font-bold text-gray-900 hover:text-primary-600 mb-2 block"
-                    >
-                      {job.title}
-                    </Link>
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                      <span className="flex items-center">
-                        <Briefcase size={16} className="mr-1" />
-                        {job.category}
-                      </span>
-                      <span className="flex items-center">
-                        <DollarSign size={16} className="mr-1" />
-                        {formatBudget(job.budget)} ({job.budgetType})
-                      </span>
-                      <span className="flex items-center">
-                        <Calendar size={16} className="mr-1" />
-                        Due: {formatDate(job.deadline)}
-                      </span>
-                    </div>
-                  </div>
-                  <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(job.status)}`}>
-                    {job.status}
-                  </span>
-                </div>
-
-                <p className="text-gray-700 mb-4 line-clamp-2">
-                  {job.description}
-                </p>
-
-                {job.skills && job.skills.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {job.skills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm"
+                <div className="p-6">
+                  {/* Header */}
+                  <div className="flex justify-between items-start mb-4">
+                    <div className="flex-1">
+                      <Link
+                        to={`/jobs/${application.job._id}`}
+                        className="text-2xl font-bold text-gray-900 hover:text-primary-600 transition-colors"
                       >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-4 border-t">
-                  <div className="flex items-center gap-4">
-                    <Link 
-                      to={`/jobs/${job._id}/applications`}
-                      className="flex items-center gap-2 px-4 py-2 bg-primary-50 hover:bg-primary-100 text-primary-700 rounded-lg transition-colors"
-                    >
-                      <div className="text-center">
-                        <p className="text-2xl font-bold">
-                          {job.applicationsCount || 0}
-                        </p>
-                        <p className="text-xs">Applications</p>
-                      </div>
-                    </Link>
-                    <div className="text-sm text-gray-600">
-                      <p>Posted {formatDate(job.createdAt)}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        Click applications to view
+                        {application.job.title}
+                      </Link>
+                      <p className="text-gray-600 mt-1">
+                        Posted by: {application.job.postedBy?.firstName} {application.job.postedBy?.lastName}
                       </p>
                     </div>
+                    <div className="flex items-center gap-2">
+                      {getStatusIcon(application.status)}
+                      <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(application.status)}`}>
+                        {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
+                      </span>
+                    </div>
                   </div>
 
-                  <div className="flex gap-2">
-                    <Link
-                      to={`/jobs/${job._id}/applications`}
-                      className="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 flex items-center"
-                    >
-                      View Applications
-                    </Link>
-                    <button
-                      onClick={() => alert('Edit functionality coming soon!')}
-                      className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center"
-                    >
-                      <Edit size={16} className="mr-2" />
-                      Edit
-                    </button>
-                    <button
-                      onClick={() => handleDelete(job._id)}
-                      disabled={deleteLoading === job._id}
-                      className="px-4 py-2 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 flex items-center disabled:opacity-50"
-                    >
-                      <Trash2 size={16} className="mr-2" />
-                      {deleteLoading === job._id ? 'Deleting...' : 'Delete'}
-                    </button>
+                  {/* Job Details */}
+                  <div className="grid md:grid-cols-3 gap-4 mb-4 bg-gray-50 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <DollarSign size={18} className="text-gray-600" />
+                      <div>
+                        <p className="text-xs text-gray-600">Job Budget</p>
+                        <p className="font-semibold text-gray-900">{formatBudget(application.job.budget)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Calendar size={18} className="text-gray-600" />
+                      <div>
+                        <p className="text-xs text-gray-600">Deadline</p>
+                        <p className="font-semibold text-gray-900">{formatDate(application.job.deadline)}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Briefcase size={18} className="text-gray-600" />
+                      <div>
+                        <p className="text-xs text-gray-600">Status</p>
+                        <p className="font-semibold text-gray-900 capitalize">{application.job.status.replace('_', ' ')}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Your Proposal */}
+                  <div className="border-t pt-4">
+                    <h4 className="font-semibold text-gray-900 mb-3">Your Proposal</h4>
+                    <div className="grid md:grid-cols-2 gap-4 mb-3">
+                      <div className="bg-primary-50 rounded-lg p-3">
+                        <p className="text-sm text-gray-600 mb-1">Your Rate</p>
+                        <p className="text-lg font-bold text-primary-700">{formatBudget(application.proposedRate)}</p>
+                      </div>
+                      <div className="bg-primary-50 rounded-lg p-3">
+                        <p className="text-sm text-gray-600 mb-1">Your Timeline</p>
+                        <p className="text-lg font-bold text-primary-700">{formatDate(application.proposedDeadline)}</p>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-sm font-medium text-gray-700 mb-2">Cover Letter:</p>
+                      <p className="text-gray-700 whitespace-pre-line">{application.coverLetter}</p>
+                    </div>
+                  </div>
+
+                  {/* Footer */}
+                  <div className="flex justify-between items-center mt-4 pt-4 border-t">
+                    <p className="text-sm text-gray-500">
+                      Applied on {formatDate(application.createdAt)}
+                    </p>
+                    <div className="flex gap-3">
+                      <Link
+                        to={`/jobs/${application.job._id}`}
+                        className="px-4 py-2 text-primary-600 hover:text-primary-700 font-medium transition-colors"
+                      >
+                        View Job
+                      </Link>
+                      {application.status === 'accepted' && (
+                        <Link
+                          to={`/messages/${application.job._id}/${application.job.client._id}`}
+                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                        >
+                          Message Client
+                        </Link>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
