@@ -4,6 +4,7 @@ import { Server } from 'socket.io';
 import dotenv from 'dotenv';
 import cors from 'cors';
 import connectDB from './config/db.js';
+import transactionRoutes from './routes/transactionRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -101,7 +102,7 @@ app.use('/api/users', userRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/messages', messageRoutes);
-
+app.use('/api/transactions', transactionRoutes);
 // Socket.IO Connection Handling
 const onlineUsers = new Map();
 
