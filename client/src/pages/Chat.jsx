@@ -12,25 +12,26 @@ export default function Chat() {
   const navigate = useNavigate();
   const { getToken } = useAuth();
   const { socket, onlineUsers } = useSocket();
-
+  
   const [messages, setMessages] = useState([]);
-  const [conversationId, setConversationId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
   const [otherUser, setOtherUser] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [typing, setTyping] = useState(false);
-
+  
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const isMountedRef = useRef(true);
 
+  // Memoize scrollToBottom to prevent recreating on every render
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, 100);
   }, []);
 
+  // Fetch data with proper cleanup
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
@@ -47,12 +48,11 @@ export default function Chat() {
       if (!isMountedRef.current) return;
       setOtherUser(otherUserResponse.data);
 
-      // Fetch messages and conversation identifier
+      // Fetch messages
       const messagesResponse = await messageService.getMessages(jobId, otherUserId);
       if (!isMountedRef.current) return;
       setMessages(messagesResponse.data);
-      setConversationId(messagesResponse.conversationId); // store the conversation ID
-
+      
       scrollToBottom();
     } catch (error) {
       console.error('Error fetching chat data:', error);
@@ -63,26 +63,104 @@ export default function Chat() {
     }
   }, [jobId, otherUserId, getToken, scrollToBottom]);
 
+  // Initial data fetch
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // socket setup omitted for brevity …
+  // Socket event handlers
+  useEffect(() => {
+    if (!socket || !currentUser) return;
+
+    const roomId = `${jobId}-${[currentUser._id, otherUserId].sort().join('-')}`;
+
+    // Join conversation room
+    socket.emit('conversation:join', {
+      jobId,
+      userId: currentUser._id,
+      otherUserId,
+    });
+
+    // Message handler with duplicate prevention
+    const handleNewMessage = (messageData) => {
+      setMessages(prev => {
+        // Prevent duplicate messages
+        const exists = prev.some(msg => msg._id === messageData._id);
+        if (exists) return prev;
+        return [...prev, messageData];
+      });
+      scrollToBottom();
+    };
+
+    // Typing handlers
+    const handleTypingShow = () => {
+      setTyping(true);
+    };
+
+    const handleTypingHide = () => {
+      setTyping(false);
+    };
+
+    // Attach listeners
+    socket.on('message:receive', handleNewMessage);
+    socket.on('typing:show', handleTypingShow);
+    socket.on('typing:hide', handleTypingHide);
+
+    // Cleanup function
+    return () => {
+      socket.emit('conversation:leave', { roomId });
+      socket.off('message:receive', handleNewMessage);
+      socket.off('typing:show', handleTypingShow);
+      socket.off('typing:hide', handleTypingHide);
+    };
+  }, [socket, currentUser, jobId, otherUserId, scrollToBottom]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true;
+    
+    return () => {
+      isMountedRef.current = false;
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  const handleTyping = useCallback(() => {
+    if (!socket || !currentUser) return;
+
+    const roomId = `${jobId}-${[currentUser._id, otherUserId].sort().join('-')}`;
+    socket.emit('typing:start', { 
+      roomId, 
+      userName: `${currentUser.firstName} ${currentUser.lastName}` 
+    });
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set new timeout
+    typingTimeoutRef.current = setTimeout(() => {
+      socket.emit('typing:stop', { roomId });
+    }, 1000);
+  }, [socket, currentUser, jobId, otherUserId]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() || !socket) return;
 
     const messageContent = newMessage.trim();
-    setNewMessage(''); // clear input
+    setNewMessage(''); // Clear input immediately for better UX
 
     try {
       const token = await getToken();
       setAuthToken(token);
 
-      // Send conversationId and content as expected by the server
       const messageData = {
-        conversationId,
+        receiverId: otherUserId,
+        jobId,
         content: messageContent,
       };
 
@@ -96,28 +174,15 @@ export default function Chat() {
         senderId: currentUser._id,
         receiverId: otherUserId,
         jobId,
-      })
+      });
 
-       scrollToBottom();
+      scrollToBottom();
     } catch (error) {
       console.error('Error sending message:', error);
-      setNewMessage(messageContent); // restore message on error
+      // Restore message on error
+      setNewMessage(messageContent);
     }
   };
-
-  const handleTyping = useCallback(() => {
-    if (!socket) return;
-    setTyping(true);
-    clearTimeout(typingTimeoutRef.current);
-    typingTimeoutRef.current = setTimeout(() => setTyping(false), 1000);
-
-    socket.emit('typing', {
-      conversationId,
-      senderId: currentUser?._id,
-      receiverId: otherUserId,
-      typing: true,
-    });
-  }, [socket, conversationId, currentUser, otherUserId]);
 
   const formatTime = (date) => {
     return new Date(date).toLocaleTimeString('en-US', {
@@ -182,7 +247,9 @@ export default function Chat() {
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message, index) => {
-          const isOwn = message.sender._id === currentUser._id;
+          // Handle both populated sender object and senderId string
+          const senderId = message.sender?._id || message.sender || message.senderId;
+          const isOwn = senderId === currentUser._id || senderId === currentUser?._id?.toString();
           
           return (
             <div
