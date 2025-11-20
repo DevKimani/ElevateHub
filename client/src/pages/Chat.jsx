@@ -24,6 +24,15 @@ export default function Chat() {
   const typingTimeoutRef = useRef(null);
   const isMountedRef = useRef(true);
 
+  // Validate jobId on mount
+  useEffect(() => {
+    if (!jobId || jobId === 'undefined') {
+      console.error('Invalid jobId:', jobId);
+      alert('Invalid conversation. Redirecting to messages.');
+      navigate('/messages');
+    }
+  }, [jobId, navigate]);
+
   // Memoize scrollToBottom to prevent recreating on every render
   const scrollToBottom = useCallback(() => {
     setTimeout(() => {
@@ -33,6 +42,9 @@ export default function Chat() {
 
   // Fetch data with proper cleanup
   const fetchData = useCallback(async () => {
+    // Don't fetch if jobId is invalid
+    if (!jobId || jobId === 'undefined') return;
+
     try {
       setLoading(true);
       const token = await getToken();
@@ -70,7 +82,7 @@ export default function Chat() {
 
   // Socket event handlers
   useEffect(() => {
-    if (!socket || !currentUser) return;
+    if (!socket || !currentUser || !jobId || jobId === 'undefined') return;
 
     const roomId = `${jobId}-${[currentUser._id, otherUserId].sort().join('-')}`;
 
@@ -128,7 +140,7 @@ export default function Chat() {
   }, []);
 
   const handleTyping = useCallback(() => {
-    if (!socket || !currentUser) return;
+    if (!socket || !currentUser || !jobId || jobId === 'undefined') return;
 
     const roomId = `${jobId}-${[currentUser._id, otherUserId].sort().join('-')}`;
     socket.emit('typing:start', { 
@@ -151,6 +163,13 @@ export default function Chat() {
     e.preventDefault();
     if (!newMessage.trim() || !socket) return;
 
+    // Validate jobId before sending
+    if (!jobId || jobId === 'undefined') {
+      alert('Invalid conversation. Please return to messages.');
+      navigate('/messages');
+      return;
+    }
+
     const messageContent = newMessage.trim();
     setNewMessage(''); // Clear input immediately for better UX
 
@@ -160,12 +179,15 @@ export default function Chat() {
 
       const messageData = {
         receiverId: otherUserId,
-        jobId,
+        jobId: jobId,
         content: messageContent,
       };
 
+      console.log('📤 Sending message with data:', messageData);
+
       // Send via API
       const response = await messageService.sendMessage(messageData);
+      console.log('✅ Message sent successfully:', response);
 
       // Only emit via socket, don't add to state here
       // The socket listener will handle adding it
@@ -178,9 +200,11 @@ export default function Chat() {
 
       scrollToBottom();
     } catch (error) {
-      console.error('Error sending message:', error);
+      console.error('❌ Error sending message:', error);
+      console.error('Error details:', error.response?.data);
       // Restore message on error
       setNewMessage(messageContent);
+      alert('Failed to send message. Please try again.');
     }
   };
 
