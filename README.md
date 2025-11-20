@@ -1,55 +1,54 @@
-🚀 ElevateHub - African Freelance Marketplace
+**🚀 ElevateHub - African Freelance Marketplace**
 Africa's Premier Freelance Marketplace built with the MERN stack. Connect talented African freelancers with clients worldwide.
 
-🌍 Live Demo
+🌍 **Live Demo
+**
+**Frontend**: https://elevatehubportal.vercel.app
+**Backend API**: https://elevatehub-server.onrender.com/api
 
-Frontend: https://elevatehubportal.vercel.app
-Backend API: https://elevatehub-server.onrender.com/api
-
-
-✨ Features
-Authentication & Users
+**✨ Features
+Authentication & Users**
 
 ✅ Secure authentication with Clerk
 ✅ Dual user roles (Freelancer & Client)
 ✅ Profile management with skills, bio, location
 ✅ Role-based dashboards
 
-Jobs & Applications
+**Jobs & Applications**
 
 ✅ Job posting with budget, deadline, categories
 ✅ Job browsing with search and filters
 ✅ Application system with proposals
 ✅ Application status tracking (pending, accepted, rejected)
 ✅ View applications for posted jobs
+**
+Work Submission & Review (coming soon)**
 
-Work Submission & Review
+🔄 Freelancer submits completed work
+🔄 Client reviews submission
+🔄 Approve or request revisions
+🔄 Revision history tracking
 
-✅ Freelancer submits completed work
-✅ Client reviews submission
-✅ Approve or request revisions
-✅ Revision history tracking
-
-Communication
+**Communication**
 
 ✅ Real-time chat with Socket.IO
 ✅ Online status indicators
 ✅ Typing indicators
 ✅ Message notifications
 
-Payments (Escrow System)
+**Payments (Escrow System)**
 
 ✅ Escrow wallet for secure payments
 ✅ Client deposits funds when accepting freelancer
 ✅ Release payment upon job completion
 ✅ Transaction history
 🔄 M-Pesa integration (Coming Soon)
-
+**
 🛠️ Tech Stack
-Frontend
-TechnologyPurposeReact 18UI LibraryViteBuild ToolTailwind CSSStylingClerkAuthenticationReact Router v6NavigationSocket.IO ClientReal-time CommunicationAxiosHTTP ClientLucide ReactIcons
-Backend
-TechnologyPurposeNode.jsRuntimeExpress.jsWeb FrameworkMongoDBDatabaseMongooseODMClerk SDKAuth VerificationSocket.IOReal-time Communication
+Frontend**
+React 18UI LibraryViteBuild ToolTailwind CSSStylingClerkAuthenticationReact Router v6NavigationSocket.IO ClientReal-time CommunicationAxiosHTTP ClientLucide ReactIcons
+**Backend**
+Node.js, Express.js, MongoDB DatabaseMongooseODMClerk SDKAuth VerificationSocket.IOReal-time Communication
 
 📁 Project Structure
 ElevateHub/
