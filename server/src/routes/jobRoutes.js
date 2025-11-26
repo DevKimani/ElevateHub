@@ -66,8 +66,19 @@ router.delete(
   deleteJob
 );
 
+// FIXED: Changed from /client/my-jobs to /my-jobs
+// This matches your frontend call to /api/jobs/my-jobs
 router.get(
-  '/client/my-jobs',
+  '/my-jobs',
+  requireAuth,
+  requireRole(['client']),
+  paginationValidation,
+  getMyJobs
+);
+
+// ALTERNATIVE: Support both routes for compatibility
+router.get(
+  '/user/my-jobs',
   requireAuth,
   requireRole(['client']),
   paginationValidation,
