@@ -1,380 +1,478 @@
+// server/src/controllers/transactionController.js
 import Transaction from '../models/Transaction.js';
 import Job from '../models/Job.js';
 import User from '../models/User.js';
-import Application from '../models/Application.js';
+import mongoose from 'mongoose';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
-// @desc    Create escrow (when client accepts freelancer)
+// @desc    Create escrow when accepting freelancer
 // @route   POST /api/transactions/escrow
 // @access  Private (Client only)
-export const createEscrow = async (req, res) => {
+export const createEscrow = asyncHandler(async (req, res) => {
+  const { jobId, amount } = req.body;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { jobId, applicationId, amount } = req.body;
-
-    // Validate required fields
-    if (!jobId || !applicationId || !amount) {
-      return res.status(400).json({
+    // Get user
+    const user = await User.findOne({ clerkId: req.userId }).session(session);
+    
+    if (!user || user.role !== 'client') {
+      await session.abortTransaction();
+      return res.status(403).json({
         success: false,
-        message: 'Please provide jobId, applicationId, and amount',
-      });
-    }
-
-    // Get current user (client)
-    const client = await User.findOne({ clerkId: req.userId });
-    if (!client) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
+        message: 'Only clients can create escrow'
       });
     }
 
     // Get job
-    const job = await Job.findById(jobId);
+    const job = await Job.findById(jobId).session(session);
+
     if (!job) {
+      await session.abortTransaction();
       return res.status(404).json({
         success: false,
-        message: 'Job not found',
+        message: 'Job not found'
       });
     }
 
-    // Verify user is the job owner
-    if (job.postedBy.toString() !== client._id.toString()) {
+    // Verify client owns the job
+    if (!job.client.equals(user._id)) {
+      await session.abortTransaction();
       return res.status(403).json({
         success: false,
-        message: 'Only the job owner can create escrow',
+        message: 'Not authorized to create escrow for this job'
       });
     }
 
-    // Get application
-    const application = await Application.findById(applicationId).populate('freelancer');
-    if (!application) {
-      return res.status(404).json({
-        success: false,
-        message: 'Application not found',
-      });
-    }
-
-    // Check if escrow already exists for this job
-    const existingEscrow = await Transaction.findOne({ 
-      job: jobId, 
-      status: 'in_escrow' 
-    });
-    
-    if (existingEscrow) {
+    // Verify job has accepted freelancer
+    if (!job.acceptedFreelancer) {
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: 'Escrow already exists for this job',
+        message: 'No freelancer accepted for this job'
+      });
+    }
+
+    // Check if escrow already exists
+    if (job.escrowCreated) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Escrow already created for this job'
+      });
+    }
+
+    // Verify client has sufficient balance
+    const escrowAmount = amount || job.budget;
+    if (user.escrowBalance < escrowAmount) {
+      await session.abortTransaction();
+      return res.status(400).json({
+        success: false,
+        message: 'Insufficient balance for escrow',
+        required: escrowAmount,
+        available: user.escrowBalance
       });
     }
 
     // Create escrow transaction
-    const transaction = await Transaction.create({
-      client: client._id,
-      freelancer: application.freelancer._id,
-      job: jobId,
-      application: applicationId,
-      amount,
-      status: 'in_escrow',
-      escrowedAt: new Date(),
-    });
+    const transaction = await Transaction.createEscrow(
+      jobId,
+      user._id,
+      job.acceptedFreelancer,
+      escrowAmount
+    );
 
-    // Update job with escrow info
-    await Job.findByIdAndUpdate(jobId, {
-      paymentStatus: 'in_escrow',
-      escrowAmount: amount,
-    });
+    // Deduct from client balance
+    user.escrowBalance -= escrowAmount;
+    await user.save({ session });
 
-    // Populate for response
-    await transaction.populate('client', 'firstName lastName email');
-    await transaction.populate('freelancer', 'firstName lastName email');
-    await transaction.populate('job', 'title budget');
+    // Update job
+    job.escrowCreated = true;
+    job.escrowAmount = escrowAmount;
+    await job.save({ session });
+
+    await session.commitTransaction();
+
+    await transaction.populate([
+      { path: 'client', select: 'firstName lastName email' },
+      { path: 'freelancer', select: 'firstName lastName email' },
+      { path: 'job', select: 'title description' }
+    ]);
 
     res.status(201).json({
       success: true,
-      message: 'Funds placed in escrow successfully',
-      data: transaction,
+      message: 'Escrow created successfully',
+      transaction
     });
+
   } catch (error) {
-    console.error('Create escrow error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error creating escrow',
-      error: error.message,
-    });
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
   }
-};
+});
 
-// @desc    Release escrow to freelancer
-// @route   POST /api/transactions/:id/release
+// @desc    Release payment to freelancer
+// @route   POST /api/transactions/release/:jobId
 // @access  Private (Client only)
-export const releaseEscrow = async (req, res) => {
+export const releasePayment = asyncHandler(async (req, res) => {
+  const { jobId } = req.params;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { id } = req.params;
-    const { note } = req.body;
+    // Get user
+    const user = await User.findOne({ clerkId: req.userId }).session(session);
 
-    // Get transaction
-    const transaction = await Transaction.findById(id).populate('job');
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found',
-      });
-    }
-
-    // Get current user
-    const user = await User.findOne({ clerkId: req.userId });
-
-    // Verify user is the client
-    if (transaction.client.toString() !== user._id.toString()) {
+    if (!user || user.role !== 'client') {
+      await session.abortTransaction();
       return res.status(403).json({
         success: false,
-        message: 'Only the client can release escrow',
+        message: 'Only clients can release payment'
       });
     }
 
-    // Check status
-    if (transaction.status !== 'in_escrow') {
+    // Find job with atomic update to prevent double release
+    const job = await Job.findOneAndUpdate(
+      { 
+        _id: jobId,
+        client: user._id,
+        status: { $in: ['submitted', 'in_progress', 'completed'] },
+        paymentReleased: { $ne: true },
+        escrowCreated: true
+      },
+      { 
+        $set: { 
+          status: 'completed',
+          paymentReleased: true,
+          paymentReleasedAt: new Date(),
+          completedAt: new Date()
+        }
+      },
+      { 
+        new: true,
+        session
+      }
+    );
+
+    if (!job) {
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: `Cannot release escrow with status: ${transaction.status}`,
+        message: 'Cannot release payment. Job may be already completed, payment already released, or no escrow exists.'
       });
     }
 
-    // Release escrow
-    transaction.status = 'released';
-    transaction.releasedAt = new Date();
-    transaction.releaseNote = note || 'Payment released by client';
-    await transaction.save();
+    // Find and update transaction atomically
+    const transaction = await Transaction.findOneAndUpdate(
+      { 
+        job: jobId,
+        status: 'held',
+        processed: { $ne: true }
+      },
+      { 
+        $set: {
+          status: 'released',
+          releaseDate: new Date(),
+          completedAt: new Date(),
+          processed: true,
+          processedAt: new Date()
+        }
+      },
+      { 
+        new: true,
+        session
+      }
+    );
 
-    // Update job status
-    await Job.findByIdAndUpdate(transaction.job._id, {
-      status: 'completed',
-      paymentStatus: 'released',
+    if (!transaction) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'No held transaction found or already processed'
+      });
+    }
+
+    // Update freelancer balance
+    const freelancer = await User.findByIdAndUpdate(
+      job.acceptedFreelancer,
+      { 
+        $inc: { escrowBalance: transaction.netAmount }
+      },
+      { 
+        new: true,
+        session
+      }
+    );
+
+    if (!freelancer) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'Freelancer not found'
+      });
+    }
+
+    await session.commitTransaction();
+
+    await transaction.populate([
+      { path: 'client', select: 'firstName lastName email' },
+      { path: 'freelancer', select: 'firstName lastName email' },
+      { path: 'job', select: 'title description' }
+    ]);
+
+    // Emit socket event
+    const io = req.app.get('io');
+    io.to(freelancer._id.toString()).emit('payment-received', {
+      jobId: job._id,
+      jobTitle: job.title,
+      amount: transaction.netAmount
     });
 
-    // Populate for response
-    await transaction.populate('client', 'firstName lastName email');
-    await transaction.populate('freelancer', 'firstName lastName email');
-    await transaction.populate('job', 'title budget');
-
-    res.status(200).json({
+    res.json({
       success: true,
-      message: 'Payment released to freelancer successfully',
-      data: transaction,
+      message: 'Payment released successfully',
+      transaction,
+      freelancerNewBalance: freelancer.escrowBalance
     });
+
   } catch (error) {
-    console.error('Release escrow error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error releasing escrow',
-      error: error.message,
-    });
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
   }
-};
+});
 
 // @desc    Request refund
-// @route   POST /api/transactions/:id/refund
+// @route   POST /api/transactions/refund/:jobId
 // @access  Private (Client only)
-export const requestRefund = async (req, res) => {
+export const requestRefund = asyncHandler(async (req, res) => {
+  const { jobId } = req.params;
+  const { reason } = req.body;
+
+  const session = await mongoose.startSession();
+  session.startTransaction();
+
   try {
-    const { id } = req.params;
-    const { reason } = req.body;
+    const user = await User.findOne({ clerkId: req.userId }).session(session);
 
-    // Get transaction
-    const transaction = await Transaction.findById(id);
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found',
-      });
-    }
-
-    // Get current user
-    const user = await User.findOne({ clerkId: req.userId });
-
-    // Verify user is the client
-    if (transaction.client.toString() !== user._id.toString()) {
+    if (!user || user.role !== 'client') {
+      await session.abortTransaction();
       return res.status(403).json({
         success: false,
-        message: 'Only the client can request a refund',
+        message: 'Only clients can request refunds'
       });
     }
 
-    // Check status
-    if (transaction.status !== 'in_escrow') {
+    // Find job
+    const job = await Job.findOne({
+      _id: jobId,
+      client: user._id,
+      escrowCreated: true,
+      paymentReleased: { $ne: true }
+    }).session(session);
+
+    if (!job) {
+      await session.abortTransaction();
       return res.status(400).json({
         success: false,
-        message: `Cannot refund escrow with status: ${transaction.status}`,
+        message: 'Cannot refund. Job not found, no escrow, or payment already released.'
       });
     }
 
-    // Process refund
-    transaction.status = 'refunded';
-    transaction.refundedAt = new Date();
-    transaction.refundReason = reason || 'Refund requested by client';
-    await transaction.save();
+    // Find transaction
+    const transaction = await Transaction.findOneAndUpdate(
+      { 
+        job: jobId,
+        status: 'held',
+        processed: { $ne: true }
+      },
+      {
+        $set: {
+          status: 'refunded',
+          refundedAt: new Date(),
+          completedAt: new Date(),
+          processed: true,
+          processedAt: new Date(),
+          metadata: {
+            ...transaction?.metadata,
+            refundReason: reason
+          }
+        }
+      },
+      { 
+        new: true,
+        session
+      }
+    );
 
-    // Update job status
-    await Job.findByIdAndUpdate(transaction.job, {
-      status: 'cancelled',
-      paymentStatus: 'refunded',
-    });
+    if (!transaction) {
+      await session.abortTransaction();
+      return res.status(404).json({
+        success: false,
+        message: 'No held transaction found'
+      });
+    }
 
-    res.status(200).json({
+    // Refund to client
+    user.escrowBalance += transaction.amount;
+    await user.save({ session });
+
+    // Update job
+    job.status = 'cancelled';
+    job.cancellationReason = reason;
+    job.cancelledAt = new Date();
+    await job.save({ session });
+
+    await session.commitTransaction();
+
+    res.json({
       success: true,
       message: 'Refund processed successfully',
-      data: transaction,
+      transaction,
+      newBalance: user.escrowBalance
     });
+
   } catch (error) {
-    console.error('Request refund error:', error);
-    res.status(500).json({
+    await session.abortTransaction();
+    throw error;
+  } finally {
+    session.endSession();
+  }
+});
+
+// @desc    Get user transactions
+// @route   GET /api/transactions
+// @access  Private
+export const getMyTransactions = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const skip = (page - 1) * limit;
+
+  const user = await User.findOne({ clerkId: req.userId });
+
+  if (!user) {
+    return res.status(404).json({
       success: false,
-      message: 'Error processing refund',
-      error: error.message,
+      message: 'User not found'
     });
   }
-};
+
+  const query = {
+    $or: [
+      { client: user._id },
+      { freelancer: user._id }
+    ]
+  };
+
+  if (req.query.status) {
+    query.status = req.query.status;
+  }
+
+  if (req.query.type) {
+    query.type = req.query.type;
+  }
+
+  const [transactions, total] = await Promise.all([
+    Transaction.find(query)
+      .populate('client', 'firstName lastName profilePicture')
+      .populate('freelancer', 'firstName lastName profilePicture')
+      .populate('job', 'title category')
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Transaction.countDocuments(query)
+  ]);
+
+  res.json({
+    success: true,
+    transactions,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit)
+    }
+  });
+});
 
 // @desc    Get transaction by ID
 // @route   GET /api/transactions/:id
 // @access  Private
-export const getTransactionById = async (req, res) => {
-  try {
-    const { id } = req.params;
+export const getTransactionById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
 
-    const transaction = await Transaction.findById(id)
-      .populate('client', 'firstName lastName email profileImage')
-      .populate('freelancer', 'firstName lastName email profileImage')
-      .populate('job', 'title budget status');
+  const user = await User.findOne({ clerkId: req.userId });
 
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'Transaction not found',
-      });
-    }
+  const transaction = await Transaction.findById(id)
+    .populate('client', 'firstName lastName email profilePicture')
+    .populate('freelancer', 'firstName lastName email profilePicture')
+    .populate('job', 'title description category budget');
 
-    // Verify user is involved
-    const user = await User.findOne({ clerkId: req.userId });
-    const isClient = transaction.client._id.toString() === user._id.toString();
-    const isFreelancer = transaction.freelancer._id.toString() === user._id.toString();
-
-    if (!isClient && !isFreelancer) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view this transaction',
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: transaction,
-    });
-  } catch (error) {
-    console.error('Get transaction error:', error);
-    res.status(500).json({
+  if (!transaction) {
+    return res.status(404).json({
       success: false,
-      message: 'Error fetching transaction',
-      error: error.message,
+      message: 'Transaction not found'
     });
   }
-};
 
-// @desc    Get user's transactions
-// @route   GET /api/transactions/my-transactions
+  // Verify user is part of transaction
+  if (!transaction.client.equals(user._id) && !transaction.freelancer.equals(user._id)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Not authorized to view this transaction'
+    });
+  }
+
+  res.json({
+    success: true,
+    transaction
+  });
+});
+
+// @desc    Add funds to wallet (for testing/demo)
+// @route   POST /api/transactions/add-funds
 // @access  Private
-export const getMyTransactions = async (req, res) => {
-  try {
-    const user = await User.findOne({ clerkId: req.userId });
+export const addFunds = asyncHandler(async (req, res) => {
+  const { amount } = req.body;
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
-    // Get transactions where user is client or freelancer
-    const transactions = await Transaction.find({
-      $or: [{ client: user._id }, { freelancer: user._id }],
-    })
-      .populate('client', 'firstName lastName email profileImage')
-      .populate('freelancer', 'firstName lastName email profileImage')
-      .populate('job', 'title budget status')
-      .sort({ createdAt: -1 });
-
-    // Calculate summary
-    const summary = {
-      totalInEscrow: 0,
-      totalReleased: 0,
-      totalRefunded: 0,
-    };
-
-    transactions.forEach(t => {
-      if (t.status === 'in_escrow') {
-        summary.totalInEscrow += t.amount;
-      } else if (t.status === 'released') {
-        summary.totalReleased += t.amount;
-      } else if (t.status === 'refunded') {
-        summary.totalRefunded += t.amount;
-      }
-    });
-
-    res.status(200).json({
-      success: true,
-      data: transactions,
-      summary,
-    });
-  } catch (error) {
-    console.error('Get my transactions error:', error);
-    res.status(500).json({
+  if (!amount || amount < 100) {
+    return res.status(400).json({
       success: false,
-      message: 'Error fetching transactions',
-      error: error.message,
+      message: 'Amount must be at least KES 100'
     });
   }
-};
 
-// @desc    Get escrow for a job
-// @route   GET /api/transactions/job/:jobId
-// @access  Private
-export const getJobTransaction = async (req, res) => {
-  try {
-    const { jobId } = req.params;
+  const user = await User.findOne({ clerkId: req.userId });
 
-    const transaction = await Transaction.findOne({ job: jobId })
-      .populate('client', 'firstName lastName email profileImage')
-      .populate('freelancer', 'firstName lastName email profileImage')
-      .populate('job', 'title budget status');
-
-    if (!transaction) {
-      return res.status(404).json({
-        success: false,
-        message: 'No transaction found for this job',
-      });
-    }
-
-    // Verify user is involved
-    const user = await User.findOne({ clerkId: req.userId });
-    const isClient = transaction.client._id.toString() === user._id.toString();
-    const isFreelancer = transaction.freelancer._id.toString() === user._id.toString();
-
-    if (!isClient && !isFreelancer) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to view this transaction',
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: transaction,
-    });
-  } catch (error) {
-    console.error('Get job transaction error:', error);
-    res.status(500).json({
+  if (!user) {
+    return res.status(404).json({
       success: false,
-      message: 'Error fetching transaction',
-      error: error.message,
+      message: 'User not found'
     });
   }
+
+  user.escrowBalance += amount;
+  await user.save();
+
+  res.json({
+    success: true,
+    message: 'Funds added successfully',
+    newBalance: user.escrowBalance
+  });
+});
+
+export default {
+  createEscrow,
+  releasePayment,
+  requestRefund,
+  getMyTransactions,
+  getTransactionById,
+  addFunds
 };

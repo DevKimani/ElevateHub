@@ -1,205 +1,249 @@
+// server/src/server.js
+import 'dotenv/config';
 import express from 'express';
-import { createServer } from 'http';
+import http from 'http';
 import { Server } from 'socket.io';
-import dotenv from 'dotenv';
 import cors from 'cors';
+import helmet from 'helmet';
+import mongoSanitize from 'express-mongo-sanitize';
+import rateLimit from 'express-rate-limit';
 import connectDB from './config/db.js';
+import { errorHandler, notFound } from './middleware/errorHandler.js';
 
-// Load environment variables
-dotenv.config();
-
-// Initialize Express app
-const app = express();
-const httpServer = createServer(app);
-
-// Allowed origins for CORS (used by both Express and Socket.IO)
-const allowedOrigins = [
-  process.env.CLIENT_URL,
-  'http://localhost:5173',
-  'http://localhost:5174',
-  'https://elevatehubportal.vercel.app',
-].filter(Boolean);
-
-// Log allowed origins on startup for debugging
-console.log('📋 Allowed CORS origins:', allowedOrigins);
-
-// Initialize Socket.IO with proper CORS
-const io = new Server(httpServer, {
-  cors: {
-    origin: allowedOrigins,
-    credentials: true,
-    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
-  },
-  transports: ['polling', 'websocket'],
-  pingTimeout: 60000,
-  pingInterval: 25000,
-});
-
-// Connect to MongoDB
-connectDB();
-
-// Middleware
-app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.error(`❌ CORS blocked origin: ${origin}`);
-      console.error(`   Allowed origins: ${allowedOrigins.join(', ')}`);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
-}));
-
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
-
-// Basic route
-app.get('/', (req, res) => {
-  res.json({
-    success: true,
-    message: '🚀 Welcome to ElevateHub API',
-    version: '1.0.0',
-  });
-});
-
-// Health check route
-app.get('/api/health', (req, res) => {
-  res.json({
-    success: true,
-    message: 'Server is running',
-    timestamp: new Date().toISOString(),
-  });
-});
-
-// Clerk health check - reports whether critical Clerk env vars are present
-app.get('/api/health/clerk', (req, res) => {
-  const clerkSecret = !!process.env.CLERK_SECRET_KEY;
-  const clerkJwtKey = !!process.env.CLERK_JWT_KEY;
-
-  res.json({
-    success: true,
-    clerkSecretKeyPresent: clerkSecret,
-    clerkJwtKeyPresent: clerkJwtKey,
-    note: 'If either value is false, set the corresponding environment variable in your deployment settings (CLERK_SECRET_KEY and CLERK_JWT_KEY) and redeploy.'
-  });
-});
-
-// Import Routes
+// Import routes
 import userRoutes from './routes/userRoutes.js';
 import jobRoutes from './routes/jobRoutes.js';
 import applicationRoutes from './routes/applicationRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import transactionRoutes from './routes/transactionRoutes.js';
 
-// API Routes
+const app = express();
+const server = http.createServer(app);
+
+// Connect to MongoDB
+connectDB();
+
+// Trust proxy (required for rate limiting behind proxies like Render)
+app.set('trust proxy', 1);
+
+// CORS configuration
+const corsOptions = {
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:3000',
+    'https://elevatehubportal.vercel.app'
+  ],
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Content-Range', 'X-Content-Range'],
+  maxAge: 600 // Cache preflight request for 10 minutes
+};
+
+app.use(cors(corsOptions));
+
+// Security middleware
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      scriptSrc: ["'self'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    }
+  },
+  crossOriginEmbedderPolicy: false // Allow embedding
+}));
+
+// Prevent NoSQL injection
+app.use(mongoSanitize());
+
+// Body parser middleware
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Rate limiting
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100, // Limit each IP to 100 requests per windowMs
+  message: {
+    success: false,
+    message: 'Too many requests from this IP, please try again later.'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Skip rate limiting for successful requests in development
+  skip: (req) => process.env.NODE_ENV === 'development' && req.method === 'GET'
+});
+
+// Apply rate limiting to all API routes
+app.use('/api/', limiter);
+
+// Stricter rate limiting for auth-sensitive endpoints
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 20,
+  message: {
+    success: false,
+    message: 'Too many authentication attempts, please try again later.'
+  }
+});
+
+// Health check endpoint (before rate limiting)
+app.get('/health', (req, res) => {
+  res.json({
+    status: 'OK',
+    uptime: process.uptime(),
+    timestamp: Date.now(),
+    environment: process.env.NODE_ENV
+  });
+});
+
+// API routes
 app.use('/api/users', userRoutes);
 app.use('/api/jobs', jobRoutes);
 app.use('/api/applications', applicationRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/transactions', transactionRoutes);
 
-// Socket.IO Connection Handling
+// Root route
+app.get('/', (req, res) => {
+  res.json({
+    message: 'ElevateHub API',
+    version: '1.0.0',
+    status: 'Running',
+    endpoints: {
+      users: '/api/users',
+      jobs: '/api/jobs',
+      applications: '/api/applications',
+      messages: '/api/messages',
+      transactions: '/api/transactions',
+      health: '/health'
+    }
+  });
+});
+
+// 404 handler (must be after all routes)
+app.use(notFound);
+
+// Error handler (must be last)
+app.use(errorHandler);
+
+// Socket.IO configuration
+const io = new Server(server, {
+  cors: corsOptions,
+  transports: ['websocket', 'polling'],
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  maxHttpBufferSize: 1e6, // 1MB
+  allowEIO3: true // Allow compatibility with older clients
+});
+
+// Store online users
 const onlineUsers = new Map();
 
+// Socket.IO connection handling
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // User joins with their ID
-  socket.on('user:online', (userId) => {
-    onlineUsers.set(userId, socket.id);
-    socket.userId = userId;
-    io.emit('users:online', Array.from(onlineUsers.keys()));
-    console.log(`User ${userId} is now online. Total online: ${onlineUsers.size}`);
+  // User goes online
+  socket.on('user-online', (userId) => {
+    if (userId) {
+      onlineUsers.set(userId, socket.id);
+      io.emit('user-status-change', { userId, status: 'online' });
+      console.log(`User ${userId} is online`);
+    }
   });
 
-  // Join a conversation room
-  socket.on('conversation:join', ({ jobId, userId, otherUserId }) => {
-    const roomId = `${jobId}-${[userId, otherUserId].sort().join('-')}`;
-    socket.join(roomId);
-    console.log(`User ${userId} joined room: ${roomId}`);
-  });
-
-  // Leave a conversation room
-  socket.on('conversation:leave', ({ roomId }) => {
-    socket.leave(roomId);
-    console.log(`User left room: ${roomId}`);
+  // Join conversation room
+  socket.on('join-conversation', (conversationId) => {
+    socket.join(conversationId);
+    console.log(`Socket ${socket.id} joined conversation: ${conversationId}`);
   });
 
   // Send message
-  socket.on('message:send', (messageData) => {
-    const { jobId, senderId, receiverId } = messageData;
-    const roomId = `${jobId}-${[senderId, receiverId].sort().join('-')}`;
+  socket.on('send-message', (data) => {
+    const { conversationId, receiverId, message } = data;
     
-    // Emit to room
-    io.to(roomId).emit('message:receive', messageData);
+    // Emit to conversation room
+    io.to(conversationId).emit('new-message', message);
     
-    // Emit to receiver if online
+    // Also emit directly to receiver if they're online
     const receiverSocketId = onlineUsers.get(receiverId);
     if (receiverSocketId) {
-      io.to(receiverSocketId).emit('notification:new-message', messageData);
+      io.to(receiverSocketId).emit('message-notification', {
+        conversationId,
+        message
+      });
     }
   });
 
   // Typing indicator
-  socket.on('typing:start', ({ roomId, userName }) => {
-    socket.to(roomId).emit('typing:show', userName);
+  socket.on('typing', (data) => {
+    const { conversationId, userId } = data;
+    socket.to(conversationId).emit('user-typing', { userId });
   });
 
-  socket.on('typing:stop', ({ roomId }) => {
-    socket.to(roomId).emit('typing:hide');
+  socket.on('stop-typing', (data) => {
+    const { conversationId, userId } = data;
+    socket.to(conversationId).emit('user-stop-typing', { userId });
   });
 
-  // User disconnect
-  socket.on('disconnect', () => {
-    if (socket.userId) {
-      onlineUsers.delete(socket.userId);
-      io.emit('users:online', Array.from(onlineUsers.keys()));
-      console.log(`User ${socket.userId} disconnected. Total online: ${onlineUsers.size}`);
+  // Handle disconnection
+  socket.on('disconnect', (reason) => {
+    console.log('User disconnected:', socket.id, 'Reason:', reason);
+    
+    // Find and remove user from online users
+    for (const [userId, socketId] of onlineUsers.entries()) {
+      if (socketId === socket.id) {
+        onlineUsers.delete(userId);
+        io.emit('user-status-change', { userId, status: 'offline' });
+        console.log(`User ${userId} went offline`);
+        break;
+      }
     }
-    console.log('User disconnected:', socket.id);
   });
 
-  // Handle errors
+  // Error handling
   socket.on('error', (error) => {
     console.error('Socket error:', error);
   });
 });
 
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error(err.stack);
-  res.status(err.status || 500).json({
-    success: false,
-    message: err.message || 'Internal Server Error',
+// Make io accessible to routes
+app.set('io', io);
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
   });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({
-    success: false,
-    message: 'Route not found',
+process.on('SIGINT', () => {
+  console.log('SIGINT signal received: closing HTTP server');
+  server.close(() => {
+    console.log('HTTP server closed');
+    process.exit(0);
+  });
+});
+
+// Handle unhandled promise rejections
+process.on('unhandledRejection', (err) => {
+  console.error('Unhandled Promise Rejection:', err);
+  server.close(() => {
+    process.exit(1);
   });
 });
 
 // Start server
 const PORT = process.env.PORT || 5000;
-httpServer.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📍 Environment: ${process.env.NODE_ENV}`);
-  console.log(`💬 Socket.IO ready for connections`);
-  // Clerk environment checks
-  if (!process.env.CLERK_SECRET_KEY) {
-    console.warn('⚠️ CLERK_SECRET_KEY is not set. Authentication will fail for protected routes.');
-  }
-  if (!process.env.CLERK_JWT_KEY) {
-    console.warn('⚠️ CLERK_JWT_KEY is not set. Token verification (JWK resolution) may fail. Set CLERK_JWT_KEY in your deployment environment.');
-  }
+server.listen(PORT, () => {
+  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+  console.log(`Socket.IO server ready`);
 });
+
+export default app;
