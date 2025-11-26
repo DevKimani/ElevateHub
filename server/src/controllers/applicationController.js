@@ -120,10 +120,11 @@ export const getMyApplications = async (req, res) => {
       });
     }
 
+    // Fixed: Corrected the populate syntax
     const applications = await Application.find({ freelancer: user._id })
-      .populate('job', 'title category budget budgetType deadline status postedBy')
       .populate({
         path: 'job',
+        select: 'title category budget budgetType deadline status',
         populate: {
           path: 'postedBy',
           select: 'firstName lastName profileImage location',
@@ -274,9 +275,9 @@ export const getApplicationById = async (req, res) => {
   try {
     const application = await Application.findById(req.params.id)
       .populate('freelancer', 'firstName lastName email profileImage skills hourlyRate location bio')
-      .populate('job', 'title description category budget budgetType deadline status postedBy')
       .populate({
         path: 'job',
+        select: 'title description category budget budgetType deadline status',
         populate: {
           path: 'postedBy',
           select: 'firstName lastName email profileImage location',
