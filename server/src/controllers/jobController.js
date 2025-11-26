@@ -277,6 +277,67 @@ export const deleteJob = async (req, res) => {
   }
 };
 
+// @desc    Cancel job
+// @route   PUT /api/jobs/:id/cancel
+// @access  Private (Owner only)
+export const cancelJob = async (req, res) => {
+  try {
+    const job = await Job.findById(req.params.id);
+
+    if (!job) {
+      return res.status(404).json({
+        success: false,
+        message: 'Job not found',
+      });
+    }
+
+    // Get user
+    const user = await User.findOne({ clerkId: req.userId });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found',
+      });
+    }
+
+    // Check if user is the owner
+    if (job.postedBy.toString() !== user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Not authorized to cancel this job',
+      });
+    }
+
+    // Can only cancel jobs that are open or in_progress
+    if (!['open', 'in_progress'].includes(job.status)) {
+      return res.status(400).json({
+        success: false,
+        message: `Cannot cancel job with status: ${job.status}`,
+      });
+    }
+
+    // Update job status to cancelled
+    job.status = 'cancelled';
+    await job.save();
+
+    await job.populate('postedBy', 'firstName lastName profileImage location');
+
+    res.status(200).json({
+      success: true,
+      data: job,
+      message: 'Job cancelled successfully',
+    });
+  } catch (error) {
+    console.error('Cancel job error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error cancelling job',
+      error: error.message,
+    });
+  }
+};
+
 // @desc    Get current user's jobs
 // @route   GET /api/jobs/my-jobs
 // @access  Private
