@@ -20,7 +20,7 @@ export default function MyApplications() {
 
       const response = await applicationService.getMyApplications();
       if (!isMountedRef.current) return;
-      setApplications(response.data);
+      setApplications(response.applications || []);
     } catch (error) {
       console.error('Error fetching applications:', error);
     } finally {
@@ -159,102 +159,102 @@ export default function MyApplications() {
               if (!application || !application.job) {
                 return null;
               }
-              
+
               return (
-              <div
-                key={application._id}
-                className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100"
-              >
-                <div className="p-6">
-                  {/* Header */}
-                  <div className="flex justify-between items-start mb-4">
-                    <div className="flex-1">
-                      <Link
-                        to={`/jobs/${application.job._id}`}
-                        className="text-2xl font-bold text-gray-900 hover:text-primary-600 transition-colors"
-                      >
-                        {application.job.title}
-                      </Link>
-                      <p className="text-gray-600 mt-1">
-                        Posted by: {application.job.postedBy?.firstName} {application.job.postedBy?.lastName}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {getStatusIcon(application.status)}
-                      <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(application.status)}`}>
-                        {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Job Details */}
-                  <div className="grid md:grid-cols-3 gap-4 mb-4 bg-gray-50 rounded-lg p-4">
-                    <div className="flex items-center gap-2">
-                      <DollarSign size={18} className="text-gray-600" />
-                      <div>
-                        <p className="text-xs text-gray-600">Job Budget</p>
-                        <p className="font-semibold text-gray-900">{formatBudget(application.job.budget)}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Calendar size={18} className="text-gray-600" />
-                      <div>
-                        <p className="text-xs text-gray-600">Deadline</p>
-                        <p className="font-semibold text-gray-900">{formatDate(application.job.deadline)}</p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <Briefcase size={18} className="text-gray-600" />
-                      <div>
-                        <p className="text-xs text-gray-600">Status</p>
-                        <p className="font-semibold text-gray-900 capitalize">{application.job.status.replace('_', ' ')}</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Your Proposal */}
-                  <div className="border-t pt-4">
-                    <h4 className="font-semibold text-gray-900 mb-3">Your Proposal</h4>
-                    <div className="grid md:grid-cols-2 gap-4 mb-3">
-                      <div className="bg-primary-50 rounded-lg p-3">
-                        <p className="text-sm text-gray-600 mb-1">Your Rate</p>
-                        <p className="text-lg font-bold text-primary-700">{formatBudget(application.proposedRate)}</p>
-                      </div>
-                      <div className="bg-primary-50 rounded-lg p-3">
-                        <p className="text-sm text-gray-600 mb-1">Your Timeline</p>
-                        <p className="text-lg font-bold text-primary-700">{formatDate(application.proposedDeadline)}</p>
-                      </div>
-                    </div>
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <p className="text-sm font-medium text-gray-700 mb-2">Cover Letter:</p>
-                      <p className="text-gray-700 whitespace-pre-line">{application.coverLetter}</p>
-                    </div>
-                  </div>
-
-                  {/* Footer */}
-                  <div className="flex justify-between items-center mt-4 pt-4 border-t">
-                    <p className="text-sm text-gray-500">
-                      Applied on {formatDate(application.createdAt)}
-                    </p>
-                    <div className="flex gap-3">
-                      <Link
-                        to={`/jobs/${application.job._id}`}
-                        className="px-4 py-2 text-primary-600 hover:text-primary-700 font-medium transition-colors"
-                      >
-                        View Job
-                      </Link>
-                      {application.status === 'accepted' && application.job.postedBy && (
+                <div
+                  key={application._id}
+                  className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100"
+                >
+                  <div className="p-6">
+                    {/* Header */}
+                    <div className="flex justify-between items-start mb-4">
+                      <div className="flex-1">
                         <Link
-                          to={`/messages/${application.job._id}/${application.job.postedBy._id}`}
-                          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          to={`/jobs/${application.job._id}`}
+                          className="text-2xl font-bold text-gray-900 hover:text-primary-600 transition-colors"
                         >
-                          Message Client
+                          {application.job.title}
                         </Link>
-                      )}
+                        <p className="text-gray-600 mt-1">
+                          Posted by: {application.job.postedBy?.firstName} {application.job.postedBy?.lastName}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {getStatusIcon(application.status)}
+                        <span className={`px-4 py-2 rounded-full text-sm font-semibold ${getStatusColor(application.status)}`}>
+                          {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Job Details */}
+                    <div className="grid md:grid-cols-3 gap-4 mb-4 bg-gray-50 rounded-lg p-4">
+                      <div className="flex items-center gap-2">
+                        <DollarSign size={18} className="text-gray-600" />
+                        <div>
+                          <p className="text-xs text-gray-600">Job Budget</p>
+                          <p className="font-semibold text-gray-900">{formatBudget(application.job.budget)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Calendar size={18} className="text-gray-600" />
+                        <div>
+                          <p className="text-xs text-gray-600">Deadline</p>
+                          <p className="font-semibold text-gray-900">{formatDate(application.job.deadline)}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Briefcase size={18} className="text-gray-600" />
+                        <div>
+                          <p className="text-xs text-gray-600">Status</p>
+                          <p className="font-semibold text-gray-900 capitalize">{application.job.status.replace('_', ' ')}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Your Proposal */}
+                    <div className="border-t pt-4">
+                      <h4 className="font-semibold text-gray-900 mb-3">Your Proposal</h4>
+                      <div className="grid md:grid-cols-2 gap-4 mb-3">
+                        <div className="bg-primary-50 rounded-lg p-3">
+                          <p className="text-sm text-gray-600 mb-1">Your Rate</p>
+                          <p className="text-lg font-bold text-primary-700">{formatBudget(application.proposedRate)}</p>
+                        </div>
+                        <div className="bg-primary-50 rounded-lg p-3">
+                          <p className="text-sm text-gray-600 mb-1">Your Timeline</p>
+                          <p className="text-lg font-bold text-primary-700">{formatDate(application.proposedDeadline)}</p>
+                        </div>
+                      </div>
+                      <div className="bg-gray-50 rounded-lg p-4">
+                        <p className="text-sm font-medium text-gray-700 mb-2">Cover Letter:</p>
+                        <p className="text-gray-700 whitespace-pre-line">{application.coverLetter}</p>
+                      </div>
+                    </div>
+
+                    {/* Footer */}
+                    <div className="flex justify-between items-center mt-4 pt-4 border-t">
+                      <p className="text-sm text-gray-500">
+                        Applied on {formatDate(application.createdAt)}
+                      </p>
+                      <div className="flex gap-3">
+                        <Link
+                          to={`/jobs/${application.job._id}`}
+                          className="px-4 py-2 text-primary-600 hover:text-primary-700 font-medium transition-colors"
+                        >
+                          View Job
+                        </Link>
+                        {application.status === 'accepted' && application.job.postedBy && (
+                          <Link
+                            to={`/messages/${application.job._id}/${application.job.postedBy._id}`}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                          >
+                            Message Client
+                          </Link>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
               );
             })}
           </div>

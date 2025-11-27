@@ -5,9 +5,9 @@ import { applicationService } from '../services/applicationService';
 import { jobService } from '../services/jobService';
 import { transactionService } from '../services/transactionService';
 import { setAuthToken } from '../services/api';
-import { 
-  ArrowLeft, User, Mail, MapPin, DollarSign, Calendar, 
-  CheckCircle, XCircle, MessageCircle, Wallet, X, Loader2 
+import {
+  ArrowLeft, User, Mail, MapPin, DollarSign, Calendar,
+  CheckCircle, XCircle, MessageCircle, Wallet, X, Loader2
 } from 'lucide-react';
 
 export default function JobApplications() {
@@ -33,11 +33,11 @@ export default function JobApplications() {
 
       const jobResponse = await jobService.getJobById(jobId);
       if (!isMountedRef.current) return;
-      setJob(jobResponse.data);
+      setJob(jobResponse.job);
 
       const appsResponse = await applicationService.getJobApplications(jobId);
       if (!isMountedRef.current) return;
-      setApplications(appsResponse.data);
+      setApplications(appsResponse.applications || []);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -70,16 +70,16 @@ export default function JobApplications() {
       setAuthToken(token);
 
       await applicationService.updateApplicationStatus(applicationId, status);
-      
+
       // If accepted, show escrow modal
       if (status === 'accepted') {
         const acceptedApp = applications.find(app => app._id === applicationId);
         setSelectedApplication(acceptedApp);
         setShowEscrowModal(true);
       }
-      
+
       await fetchData();
-      
+
       if (status === 'rejected') {
         alert('Application rejected');
       }
@@ -174,11 +174,10 @@ export default function JobApplications() {
                 <span>•</span>
                 <span>Deadline: {formatDate(job?.deadline)}</span>
                 <span>•</span>
-                <span className={`font-medium ${
-                  job?.status === 'open' ? 'text-green-600' :
-                  job?.status === 'in_progress' ? 'text-blue-600' :
-                  'text-gray-600'
-                }`}>
+                <span className={`font-medium ${job?.status === 'open' ? 'text-green-600' :
+                    job?.status === 'in_progress' ? 'text-blue-600' :
+                      'text-gray-600'
+                  }`}>
                   Status: {job?.status?.replace('_', ' ')}
                 </span>
                 {job?.paymentStatus && job.paymentStatus !== 'unpaid' && (
@@ -254,11 +253,10 @@ export default function JobApplications() {
                       )}
                     </div>
                   </div>
-                  <span className={`px-4 py-2 rounded-full text-sm font-semibold ${
-                    application.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    application.status === 'accepted' ? 'bg-green-100 text-green-800' :
-                    'bg-red-100 text-red-800'
-                  }`}>
+                  <span className={`px-4 py-2 rounded-full text-sm font-semibold ${application.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                      application.status === 'accepted' ? 'bg-green-100 text-green-800' :
+                        'bg-red-100 text-red-800'
+                    }`}>
                     {application.status.charAt(0).toUpperCase() + application.status.slice(1)}
                   </span>
                 </div>
@@ -319,7 +317,7 @@ export default function JobApplications() {
                   <p className="text-sm text-gray-500 flex-1">
                     Applied on {formatDate(application.createdAt)}
                   </p>
-                  
+
                   {application.status === 'pending' && (
                     <>
                       <button
