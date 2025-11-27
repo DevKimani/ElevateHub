@@ -37,7 +37,7 @@ const corsOptions = {
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  maxAge: 600 // Cache preflight request for 10 minutes
+  maxAge: 600
 };
 
 app.use(cors(corsOptions));
@@ -52,7 +52,7 @@ app.use(helmet({
       imgSrc: ["'self'", "data:", "https:"],
     }
   },
-  crossOriginEmbedderPolicy: false // Allow embedding
+  crossOriginEmbedderPolicy: false
 }));
 
 // Prevent NoSQL injection
@@ -64,30 +64,18 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  windowMs: 15 * 60 * 1000,
+  max: 100,
   message: {
     success: false,
     message: 'Too many requests from this IP, please try again later.'
   },
   standardHeaders: true,
   legacyHeaders: false,
-  // Skip rate limiting for successful requests in development
   skip: (req) => process.env.NODE_ENV === 'development' && req.method === 'GET'
 });
 
-// Apply rate limiting to all API routes
 app.use('/api/', limiter);
-
-// Stricter rate limiting for auth-sensitive endpoints
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 20,
-  message: {
-    success: false,
-    message: 'Too many authentication attempts, please try again later.'
-  }
-});
 
 // Health check endpoint (before rate limiting)
 app.get('/health', (req, res) => {
@@ -98,13 +86,6 @@ app.get('/health', (req, res) => {
     environment: process.env.NODE_ENV
   });
 });
-
-// API routes
-app.use('/api/users', userRoutes);
-app.use('/api/jobs', jobRoutes);
-app.use('/api/applications', applicationRoutes);
-app.use('/api/messages', messageRoutes);
-app.use('/api/transactions', transactionRoutes);
 
 // Root route
 app.get('/', (req, res) => {
@@ -123,6 +104,31 @@ app.get('/', (req, res) => {
   });
 });
 
+// ✅ CRITICAL: Register routes IN THE CORRECT ORDER
+// Specific routes MUST come before parameterized routes
+
+console.log('Registering routes...');
+
+// User routes
+app.use('/api/users', userRoutes);
+console.log('✓ User routes registered');
+
+// Job routes - REGISTER BEFORE OTHER ROUTES
+app.use('/api/jobs', jobRoutes);
+console.log('✓ Job routes registered');
+
+// Application routes
+app.use('/api/applications', applicationRoutes);
+console.log('✓ Application routes registered');
+
+// Message routes
+app.use('/api/messages', messageRoutes);
+console.log('✓ Message routes registered');
+
+// Transaction routes
+app.use('/api/transactions', transactionRoutes);
+console.log('✓ Transaction routes registered');
+
 // 404 handler (must be after all routes)
 app.use(notFound);
 
@@ -136,8 +142,8 @@ const io = new Server(server, {
   pingTimeout: 60000,
   pingInterval: 25000,
   upgradeTimeout: 30000,
-  maxHttpBufferSize: 1e6, // 1MB
-  allowEIO3: true // Allow compatibility with older clients
+  maxHttpBufferSize: 1e6,
+  allowEIO3: true
 });
 
 // Store online users
@@ -147,7 +153,6 @@ const onlineUsers = new Map();
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
-  // User goes online
   socket.on('user-online', (userId) => {
     if (userId) {
       onlineUsers.set(userId, socket.id);
@@ -156,20 +161,16 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Join conversation room
   socket.on('join-conversation', (conversationId) => {
     socket.join(conversationId);
     console.log(`Socket ${socket.id} joined conversation: ${conversationId}`);
   });
 
-  // Send message
   socket.on('send-message', (data) => {
     const { conversationId, receiverId, message } = data;
     
-    // Emit to conversation room
     io.to(conversationId).emit('new-message', message);
     
-    // Also emit directly to receiver if they're online
     const receiverSocketId = onlineUsers.get(receiverId);
     if (receiverSocketId) {
       io.to(receiverSocketId).emit('message-notification', {
@@ -179,7 +180,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Typing indicator
   socket.on('typing', (data) => {
     const { conversationId, userId } = data;
     socket.to(conversationId).emit('user-typing', { userId });
@@ -190,11 +190,9 @@ io.on('connection', (socket) => {
     socket.to(conversationId).emit('user-stop-typing', { userId });
   });
 
-  // Handle disconnection
   socket.on('disconnect', (reason) => {
     console.log('User disconnected:', socket.id, 'Reason:', reason);
     
-    // Find and remove user from online users
     for (const [userId, socketId] of onlineUsers.entries()) {
       if (socketId === socket.id) {
         onlineUsers.delete(userId);
@@ -205,7 +203,6 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Error handling
   socket.on('error', (error) => {
     console.error('Socket error:', error);
   });
@@ -231,7 +228,6 @@ process.on('SIGINT', () => {
   });
 });
 
-// Handle unhandled promise rejections
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);
   server.close(() => {
