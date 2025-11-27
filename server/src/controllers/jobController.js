@@ -1,546 +1,476 @@
+// server/src/controllers/jobController.js
 import Job from '../models/Job.js';
+import Application from '../models/Application.js';
+import Transaction from '../models/Transaction.js';
 import User from '../models/User.js';
+import mongoose from 'mongoose';
+import { asyncHandler } from '../middleware/errorHandler.js';
 
-// @desc    Get all jobs (with filters)
+// @desc    Create a new job
+// @route   POST /api/jobs
+// @access  Private (Client only)
+export const createJob = asyncHandler(async (req, res) => {
+  const { title, description, budget, category, deadline, skills, tags, experienceLevel } = req.body;
+  
+  // Get user from database using clerkId
+  const user = await User.findOne({ clerkId: req.userId });
+  
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      message: 'User not found. Please complete your profile.'
+    });
+  }
+
+  if (user.role !== 'client') {
+    return res.status(403).json({
+      success: false,
+      message: 'Only clients can post jobs'
+    });
+  }
+
+  // Create the job with the user's MongoDB _id
+  const job = await Job.create({
+    title,
+    description,
+    budget,
+    category,
+    deadline,
+    skills: skills || [],
+    tags: tags || [],
+    experienceLevel: experienceLevel || 'any',
+    client: user._id  // ✅ CRITICAL: Use user._id (MongoDB ObjectId), not req.userId (Clerk ID)
+  });
+
+  // Populate the client data for the response
+  await job.populate('client', 'firstName lastName profilePicture email');
+
+  res.status(201).json({
+    success: true,
+    message: 'Job created successfully',
+    job
+  });
+});
+
+// @desc    Get all jobs with pagination and filters
 // @route   GET /api/jobs
 // @access  Public
-export const getAllJobs = async (req, res) => {
-  try {
-    const {
-      category,
-      budgetMin,
-      budgetMax,
-      search,
-      page = 1,
-      limit = 10,
-      status = 'open',
-    } = req.query;
+export const getJobs = asyncHandler(async (req, res) => {
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const skip = (page - 1) * limit;
 
-    // Build query
-    const query = { status };
+  const { 
+    category, 
+    minBudget, 
+    maxBudget, 
+    search, 
+    status = 'open',
+    experienceLevel,
+    sortBy = 'createdAt',
+    order = 'desc'
+  } = req.query;
 
-    // Category filter
-    if (category) {
-      query.category = category;
-    }
-
-    // Budget filter
-    if (budgetMin || budgetMax) {
-      query.budget = {};
-      if (budgetMin) query.budget.$gte = Number(budgetMin);
-      if (budgetMax) query.budget.$lte = Number(budgetMax);
-    }
-
-    // Search filter (title and description)
-    if (search) {
-      query.$or = [
-        { title: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } },
-      ];
-    }
-
-    // Pagination
-    const skip = (Number(page) - 1) * Number(limit);
-
-    // Execute query
-    const jobs = await Job.find(query)
-      .populate('postedBy', 'firstName lastName profileImage location')
-      .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(Number(limit));
-
-    // Get total count for pagination
-    const total = await Job.countDocuments(query);
-
-    res.status(200).json({
-      success: true,
-      data: jobs,
-      pagination: {
-        total,
-        page: Number(page),
-        pages: Math.ceil(total / Number(limit)),
-      },
-    });
-  } catch (error) {
-    console.error('Get all jobs error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching jobs',
-      error: error.message,
-    });
+  // Build query
+  const query = { isActive: true };
+  
+  if (status && status !== 'all') {
+    query.status = status;
   }
-};
 
-// Alias for backward compatibility
-export const getJobs = getAllJobs;
+  if (category && category !== 'all') {
+    query.category = category;
+  }
 
-// @desc    Get single job by ID
+  if (experienceLevel && experienceLevel !== 'all') {
+    query.experienceLevel = experienceLevel;
+  }
+
+  if (minBudget || maxBudget) {
+    query.budget = {};
+    if (minBudget) query.budget.$gte = Number(minBudget);
+    if (maxBudget) query.budget.$lte = Number(maxBudget);
+  }
+
+  if (search) {
+    query.$text = { $search: search };
+  }
+
+  // Build sort object
+  const sortOrder = order === 'asc' ? 1 : -1;
+  const sort = {};
+  
+  if (search) {
+    sort.score = { $meta: 'textScore' };
+  } else {
+    sort[sortBy] = sortOrder;
+  }
+
+  // Execute query
+  const [jobs, total] = await Promise.all([
+    Job.find(query)
+      .populate('client', 'firstName lastName profilePicture location')
+      .populate('acceptedFreelancer', 'firstName lastName profilePicture')
+      .sort(sort)
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Job.countDocuments(query)
+  ]);
+
+  res.json({
+    success: true,
+    jobs,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit),
+      hasNext: page * limit < total,
+      hasPrev: page > 1
+    }
+  });
+});
+
+// @desc    Get a single job by ID
 // @route   GET /api/jobs/:id
 // @access  Public
-export const getJobById = async (req, res) => {
-  try {
-    const job = await Job.findById(req.params.id)
-      .populate('postedBy', 'firstName lastName email profileImage location bio')
-      .populate('acceptedFreelancer', 'firstName lastName profileImage');
+export const getJobById = asyncHandler(async (req, res) => {
+  const { id } = req.params;
 
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        message: 'Job not found',
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: job,
-    });
-  } catch (error) {
-    console.error('Get job by ID error:', error);
-    res.status(500).json({
+  if (!mongoose.Types.ObjectId.isValid(id)) {
+    return res.status(400).json({
       success: false,
-      message: 'Error fetching job',
-      error: error.message,
+      message: 'Invalid job ID'
     });
   }
-};
 
-// @desc    Create new job
-// @route   POST /api/jobs
-// @access  Private (Clients only)
-export const createJob = async (req, res) => {
-  try {
-    // Get user
-    const user = await User.findOne({ clerkId: req.userId });
+  const job = await Job.findById(id)
+    .populate('client', 'firstName lastName profilePicture email location bio')
+    .populate('acceptedFreelancer', 'firstName lastName profilePicture skills hourlyRate')
+    .populate('submissions.submittedBy', 'firstName lastName profilePicture')
+    .populate('submissions.reviewedBy', 'firstName lastName');
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
-    // Check if user is a client
-    if (user.role !== 'client') {
-      return res.status(403).json({
-        success: false,
-        message: 'Only clients can post jobs',
-      });
-    }
-
-    const {
-      title,
-      description,
-      category,
-      budget,
-      budgetType,
-      deadline,
-      skills,
-    } = req.body;
-
-    // Validate required fields
-    if (!title || !description || !category || !budget || !deadline) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide all required fields',
-      });
-    }
-
-    // Create job
-    const job = await Job.create({
-      title,
-      description,
-      category,
-      budget,
-      budgetType: budgetType || 'fixed',
-      deadline,
-      skills: skills || [],
-      postedBy: user._id,
-    });
-
-    // Populate postedBy field
-    await job.populate('postedBy', 'firstName lastName profileImage location');
-
-    res.status(201).json({
-      success: true,
-      data: job,
-      message: 'Job posted successfully',
-    });
-  } catch (error) {
-    console.error('Create job error:', error);
-    res.status(500).json({
+  if (!job) {
+    return res.status(404).json({
       success: false,
-      message: 'Error creating job',
-      error: error.message,
+      message: 'Job not found'
     });
   }
-};
 
-// @desc    Update job
+  // Increment view count (async, don't wait)
+  job.incrementViews().catch(err => console.error('Error incrementing views:', err));
+
+  res.json({
+    success: true,
+    job
+  });
+});
+
+// @desc    Update a job
 // @route   PUT /api/jobs/:id
-// @access  Private (Owner only)
-export const updateJob = async (req, res) => {
-  try {
-    const job = await Job.findById(req.params.id);
+// @access  Private (Job owner only)
+export const updateJob = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const updates = req.body;
 
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        message: 'Job not found',
-      });
-    }
+  const job = await Job.findById(id);
 
-    // Get user
-    const user = await User.findOne({ clerkId: req.userId });
-
-    // Check if user is the owner
-    if (job.postedBy.toString() !== user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to update this job',
-      });
-    }
-
-    const {
-      title,
-      description,
-      category,
-      budget,
-      budgetType,
-      deadline,
-      skills,
-      status,
-    } = req.body;
-
-    // Update fields
-    if (title) job.title = title;
-    if (description) job.description = description;
-    if (category) job.category = category;
-    if (budget) job.budget = budget;
-    if (budgetType) job.budgetType = budgetType;
-    if (deadline) job.deadline = deadline;
-    if (skills) job.skills = skills;
-    if (status) job.status = status;
-
-    await job.save();
-    await job.populate('postedBy', 'firstName lastName profileImage location');
-
-    res.status(200).json({
-      success: true,
-      data: job,
-      message: 'Job updated successfully',
-    });
-  } catch (error) {
-    console.error('Update job error:', error);
-    res.status(500).json({
+  if (!job) {
+    return res.status(404).json({
       success: false,
-      message: 'Error updating job',
-      error: error.message,
+      message: 'Job not found'
     });
   }
-};
 
-// @desc    Delete job
-// @route   DELETE /api/jobs/:id
-// @access  Private (Owner only)
-export const deleteJob = async (req, res) => {
-  try {
-    const job = await Job.findById(req.params.id);
-
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        message: 'Job not found',
-      });
-    }
-
-    // Get user
-    const user = await User.findOne({ clerkId: req.userId });
-
-    // Check if user is the owner
-    if (job.postedBy.toString() !== user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to delete this job',
-      });
-    }
-
-    await job.deleteOne();
-
-    res.status(200).json({
-      success: true,
-      message: 'Job deleted successfully',
-    });
-  } catch (error) {
-    console.error('Delete job error:', error);
-    res.status(500).json({
+  // Check ownership
+  const user = await User.findOne({ clerkId: req.userId });
+  if (!job.client.equals(user._id)) {
+    return res.status(403).json({
       success: false,
-      message: 'Error deleting job',
-      error: error.message,
+      message: 'Not authorized to update this job'
     });
   }
-};
 
-// @desc    Cancel job
-// @route   POST /api/jobs/:id/cancel
-// @access  Private (Owner only)
-export const cancelJob = async (req, res) => {
-  try {
-    const job = await Job.findById(req.params.id);
-
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        message: 'Job not found',
-      });
-    }
-
-    // Get user
-    const user = await User.findOne({ clerkId: req.userId });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
-    // Check if user is the owner
-    if (job.postedBy.toString() !== user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to cancel this job',
-      });
-    }
-
-    // Can only cancel jobs that are open or in_progress
-    if (!['open', 'in_progress'].includes(job.status)) {
+  // Prevent updating certain fields after job is in progress
+  if (job.status !== 'open') {
+    const restrictedFields = ['budget', 'category'];
+    const hasRestrictedUpdates = restrictedFields.some(field => field in updates);
+    
+    if (hasRestrictedUpdates) {
       return res.status(400).json({
         success: false,
-        message: `Cannot cancel job with status: ${job.status}`,
+        message: 'Cannot update budget or category after job has started'
       });
     }
+  }
 
-    // Update job status to cancelled
-    job.status = 'cancelled';
-    await job.save();
+  // Apply updates
+  Object.keys(updates).forEach(key => {
+    if (updates[key] !== undefined) {
+      job[key] = updates[key];
+    }
+  });
 
-    await job.populate('postedBy', 'firstName lastName profileImage location');
+  await job.save();
+  await job.populate('client', 'firstName lastName profilePicture');
 
-    res.status(200).json({
-      success: true,
-      data: job,
-      message: 'Job cancelled successfully',
-    });
-  } catch (error) {
-    console.error('Cancel job error:', error);
-    res.status(500).json({
+  res.json({
+    success: true,
+    message: 'Job updated successfully',
+    job
+  });
+});
+
+// @desc    Delete a job
+// @route   DELETE /api/jobs/:id
+// @access  Private (Job owner only)
+export const deleteJob = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const job = await Job.findById(id);
+
+  if (!job) {
+    return res.status(404).json({
       success: false,
-      message: 'Error cancelling job',
-      error: error.message,
+      message: 'Job not found'
     });
   }
-};
 
-// @desc    Get current user's jobs
-// @route   GET /api/jobs/client/my-jobs
-// @access  Private
-export const getMyJobs = async (req, res) => {
-  try {
-    const user = await User.findOne({ clerkId: req.userId });
+  // Check ownership
+  const user = await User.findOne({ clerkId: req.userId });
+  if (!job.client.equals(user._id)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Not authorized to delete this job'
+    });
+  }
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
+  // Don't allow deletion if job is in progress or has escrow
+  if (job.status === 'in_progress' || job.escrowCreated) {
+    return res.status(400).json({
+      success: false,
+      message: 'Cannot delete job that is in progress or has escrow funds'
+    });
+  }
 
-    const jobs = await Job.find({ postedBy: user._id })
+  // Soft delete by marking inactive
+  job.isActive = false;
+  job.status = 'cancelled';
+  await job.save();
+
+  res.json({
+    success: true,
+    message: 'Job deleted successfully'
+  });
+});
+
+// @desc    Get jobs posted by client
+// @route   GET /api/jobs/my-jobs
+// @access  Private (Client only)
+export const getMyJobs = asyncHandler(async (req, res) => {
+  const user = await User.findOne({ clerkId: req.userId });
+
+  if (!user || user.role !== 'client') {
+    return res.status(403).json({
+      success: false,
+      message: 'Only clients can view their jobs'
+    });
+  }
+
+  const page = parseInt(req.query.page) || 1;
+  const limit = parseInt(req.query.limit) || 20;
+  const skip = (page - 1) * limit;
+  const { status } = req.query;
+
+  const query = { client: user._id };
+  if (status && status !== 'all') {
+    query.status = status;
+  }
+
+  const [jobs, total] = await Promise.all([
+    Job.find(query)
+      .populate('acceptedFreelancer', 'firstName lastName profilePicture')
       .sort({ createdAt: -1 })
-      .populate('acceptedFreelancer', 'firstName lastName profileImage');
+      .skip(skip)
+      .limit(limit)
+      .lean(),
+    Job.countDocuments(query)
+  ]);
 
-    res.status(200).json({
-      success: true,
-      data: jobs,
-    });
-  } catch (error) {
-    console.error('Get my jobs error:', error);
-    res.status(500).json({
-      success: false,
-      message: 'Error fetching jobs',
-      error: error.message,
-    });
-  }
-};
+  // Get application counts for each job
+  const jobIds = jobs.map(job => job._id);
+  const applicationCounts = await Application.aggregate([
+    { $match: { job: { $in: jobIds } } },
+    { $group: { _id: '$job', count: { $sum: 1 } } }
+  ]);
+
+  const countMap = applicationCounts.reduce((acc, curr) => {
+    acc[curr._id] = curr.count;
+    return acc;
+  }, {});
+
+  const jobsWithCounts = jobs.map(job => ({
+    ...job,
+    applicationsCount: countMap[job._id] || 0
+  }));
+
+  res.json({
+    success: true,
+    jobs: jobsWithCounts,
+    pagination: {
+      page,
+      limit,
+      total,
+      pages: Math.ceil(total / limit)
+    }
+  });
+});
 
 // @desc    Submit work for a job
 // @route   POST /api/jobs/:id/submit
-// @access  Private (Freelancer only)
-export const submitWork = async (req, res) => {
-  try {
-    const job = await Job.findById(req.params.id);
+// @access  Private (Accepted freelancer only)
+export const submitWork = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { description, attachments } = req.body;
 
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        message: 'Job not found',
-      });
-    }
+  const job = await Job.findById(id);
 
-    // Get user
-    const user = await User.findOne({ clerkId: req.userId });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
-    // Check if job is in progress and assigned to this freelancer
-    if (job.status !== 'in_progress') {
-      return res.status(400).json({
-        success: false,
-        message: 'Job must be in progress to submit work',
-      });
-    }
-
-    if (job.acceptedFreelancer && job.acceptedFreelancer.toString() !== user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'You are not assigned to this job',
-      });
-    }
-
-    const { description, attachments } = req.body;
-
-    // Create work submission
-    const submission = {
-      freelancer: user._id,
-      description,
-      attachments: attachments || [],
-      submittedAt: new Date(),
-      status: 'pending'
-    };
-
-    // Add submission to job
-    if (!job.submissions) {
-      job.submissions = [];
-    }
-    job.submissions.push(submission);
-    
-    // Update job status to under_review
-    job.status = 'under_review';
-    await job.save();
-
-    await job.populate('postedBy', 'firstName lastName profileImage location');
-    await job.populate('acceptedFreelancer', 'firstName lastName profileImage');
-
-    res.status(200).json({
-      success: true,
-      data: job,
-      message: 'Work submitted successfully',
-    });
-  } catch (error) {
-    console.error('Submit work error:', error);
-    res.status(500).json({
+  if (!job) {
+    return res.status(404).json({
       success: false,
-      message: 'Error submitting work',
-      error: error.message,
+      message: 'Job not found'
     });
   }
-};
 
-// @desc    Review submitted work
+  const user = await User.findOne({ clerkId: req.userId });
+
+  // Check if user is the accepted freelancer
+  if (!job.acceptedFreelancer || !job.acceptedFreelancer.equals(user._id)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Only the accepted freelancer can submit work'
+    });
+  }
+
+  const submission = await job.addSubmission({
+    submittedBy: user._id,
+    description,
+    attachments: attachments || []
+  });
+
+  await job.populate('acceptedFreelancer', 'firstName lastName profilePicture');
+
+  // Emit socket event to client
+  const io = req.app.get('io');
+  io.to(job.client.toString()).emit('work-submitted', {
+    jobId: job._id,
+    jobTitle: job.title,
+    freelancer: user.firstName + ' ' + user.lastName
+  });
+
+  res.status(201).json({
+    success: true,
+    message: 'Work submitted successfully',
+    submission,
+    job
+  });
+});
+
+// @desc    Review work submission
 // @route   POST /api/jobs/:id/review/:submissionId
 // @access  Private (Client only)
-export const reviewWork = async (req, res) => {
-  try {
-    const { id: jobId, submissionId } = req.params;
-    const { approved, feedback, rating } = req.body;
+export const reviewWork = asyncHandler(async (req, res) => {
+  const { id, submissionId } = req.params;
+  const { status, reviewNotes } = req.body;
 
-    const job = await Job.findById(jobId);
+  const job = await Job.findById(id);
 
-    if (!job) {
-      return res.status(404).json({
-        success: false,
-        message: 'Job not found',
-      });
-    }
-
-    // Get user
-    const user = await User.findOne({ clerkId: req.userId });
-
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
-    // Check if user is the job owner
-    if (job.postedBy.toString() !== user._id.toString()) {
-      return res.status(403).json({
-        success: false,
-        message: 'Not authorized to review this submission',
-      });
-    }
-
-    // Find the submission
-    const submission = job.submissions?.id(submissionId);
-
-    if (!submission) {
-      return res.status(404).json({
-        success: false,
-        message: 'Submission not found',
-      });
-    }
-
-    // Update submission
-    submission.status = approved ? 'approved' : 'rejected';
-    submission.feedback = feedback;
-    submission.reviewedAt = new Date();
-
-    // Update job status
-    if (approved) {
-      job.status = 'completed';
-      job.completedAt = new Date();
-      
-      // Update freelancer rating if provided
-      if (rating && job.acceptedFreelancer) {
-        const freelancer = await User.findById(job.acceptedFreelancer);
-        if (freelancer) {
-          // Update freelancer's average rating
-          const currentRatings = freelancer.totalRatings || 0;
-          const currentAverage = freelancer.rating || 0;
-          const newTotal = currentRatings + 1;
-          const newAverage = ((currentAverage * currentRatings) + rating) / newTotal;
-          
-          freelancer.rating = newAverage;
-          freelancer.totalRatings = newTotal;
-          await freelancer.save();
-        }
-      }
-    } else {
-      job.status = 'in_progress'; // Send back to in progress for revision
-    }
-
-    await job.save();
-
-    await job.populate('postedBy', 'firstName lastName profileImage location');
-    await job.populate('acceptedFreelancer', 'firstName lastName profileImage');
-
-    res.status(200).json({
-      success: true,
-      data: job,
-      message: approved ? 'Work approved successfully' : 'Work rejected, freelancer can resubmit',
-    });
-  } catch (error) {
-    console.error('Review work error:', error);
-    res.status(500).json({
+  if (!job) {
+    return res.status(404).json({
       success: false,
-      message: 'Error reviewing work',
-      error: error.message,
+      message: 'Job not found'
     });
   }
+
+  const user = await User.findOne({ clerkId: req.userId });
+
+  // Check if user is the job client
+  if (!job.client.equals(user._id)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Only the client can review work'
+    });
+  }
+
+  const submission = await job.reviewSubmission(
+    submissionId,
+    status,
+    reviewNotes,
+    user._id
+  );
+
+  await job.populate('acceptedFreelancer', 'firstName lastName profilePicture');
+
+  // Emit socket event to freelancer
+  const io = req.app.get('io');
+  io.to(job.acceptedFreelancer._id.toString()).emit('work-reviewed', {
+    jobId: job._id,
+    jobTitle: job.title,
+    status,
+    reviewNotes
+  });
+
+  res.json({
+    success: true,
+    message: `Work ${status === 'approved' ? 'approved' : 'revision requested'}`,
+    submission,
+    job
+  });
+});
+
+// @desc    Cancel a job
+// @route   POST /api/jobs/:id/cancel
+// @access  Private (Client only)
+export const cancelJob = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const { reason } = req.body;
+
+  const job = await Job.findById(id);
+
+  if (!job) {
+    return res.status(404).json({
+      success: false,
+      message: 'Job not found'
+    });
+  }
+
+  const user = await User.findOne({ clerkId: req.userId });
+
+  if (!job.client.equals(user._id)) {
+    return res.status(403).json({
+      success: false,
+      message: 'Only the job owner can cancel this job'
+    });
+  }
+
+  await job.cancel(reason);
+
+  res.json({
+    success: true,
+    message: 'Job cancelled successfully',
+    job
+  });
+});
+
+export default {
+  createJob,
+  getJobs,
+  getJobById,
+  updateJob,
+  deleteJob,
+  getMyJobs,
+  submitWork,
+  reviewWork,
+  cancelJob
 };
