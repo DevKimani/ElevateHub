@@ -10,6 +10,7 @@ function JobDetail() {
   const { user } = useUser();
   
   const [job, setJob] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hasApplied, setHasApplied] = useState(false);
@@ -17,13 +18,23 @@ function JobDetail() {
 
   useEffect(() => {
     fetchJobDetail();
+    fetchCurrentUser();
   }, [id]);
 
   useEffect(() => {
-    if (job && user) {
+    if (job && user && currentUser?.role === 'freelancer') {
       checkIfApplied();
     }
-  }, [job, user]);
+  }, [job, user, currentUser]);
+
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await api.get('/users/me');
+      setCurrentUser(response.data.user);
+    } catch (err) {
+      console.error('Error fetching current user:', err);
+    }
+  };
 
   const fetchJobDetail = async () => {
     try {
@@ -34,7 +45,6 @@ function JobDetail() {
       
       console.log('Job detail response:', response.data);
 
-      // ✅ API returns { success, job }
       setJob(response.data.job);
 
     } catch (err) {
@@ -53,7 +63,6 @@ function JobDetail() {
       
       console.log('My applications:', response.data);
 
-      // ✅ Check if we've already applied to this job
       const applications = response.data.applications || [];
       const applied = applications.some(
         app => app.job?._id === id || app.job === id
@@ -63,7 +72,6 @@ function JobDetail() {
 
     } catch (err) {
       console.error('Error checking applications:', err);
-      // Don't show error for this - it's not critical
     } finally {
       setCheckingApplication(false);
     }
@@ -120,8 +128,11 @@ function JobDetail() {
     );
   }
 
-  const isOwner = job.client?._id === user?.publicMetadata?.mongoId;
-  const canApply = !isOwner && job.status === 'open' && !hasApplied;
+  // ✅ FIXED: Properly check user role
+  const isClient = currentUser?.role === 'client';
+  const isFreelancer = currentUser?.role === 'freelancer';
+  const isOwner = isClient && job.client?._id === currentUser?._id;
+  const canApply = isFreelancer && job.status === 'open' && !hasApplied;
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -261,6 +272,7 @@ function JobDetail() {
       {/* Action Buttons */}
       <div className="bg-white rounded-lg shadow-lg p-8">
         {isOwner ? (
+          // Client owns this job
           <div className="flex gap-4">
             <Link
               to={`/jobs/${job._id}/applications`}
@@ -275,7 +287,15 @@ function JobDetail() {
               Edit Job
             </Link>
           </div>
-        ) : (
+        ) : isClient ? (
+          // Client viewing someone else's job
+          <div className="text-center p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <p className="text-gray-600">
+              This is another client's job posting
+            </p>
+          </div>
+        ) : isFreelancer ? (
+          // Freelancer viewing job
           <div>
             {hasApplied ? (
               <div className="text-center p-4 bg-green-50 border border-green-200 rounded-lg">
@@ -307,6 +327,17 @@ function JobDetail() {
                 </p>
               </div>
             )}
+          </div>
+        ) : (
+          // Not logged in
+          <div className="text-center p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <p className="text-gray-600">Please sign in to apply for this job</p>
+            <Link
+              to="/sign-in"
+              className="mt-4 inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Sign In
+            </Link>
           </div>
         )}
       </div>
