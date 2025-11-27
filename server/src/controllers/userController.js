@@ -1,5 +1,6 @@
 import User from '../models/User.js';
 import { createClerkClient } from '@clerk/backend';
+import logger from '../utils/logger.js';
 
 const clerkClient = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY
@@ -10,17 +11,17 @@ const clerkClient = createClerkClient({
 // @access  Private
 export const getCurrentUser = async (req, res) => {
   try {
-    console.log('getCurrentUser: userId from token:', req.userId);
-    
+    logger.debug('getCurrentUser: userId from token:', { userId: req.userId });
+
     // Get user info from Clerk
     const clerkUser = await clerkClient.users.getUser(req.userId);
-    console.log('getCurrentUser: Clerk user fetched:', clerkUser.id);
-    
+    logger.debug('getCurrentUser: Clerk user fetched:', { clerkUserId: clerkUser.id });
+
     // Check if user exists in our database
     let user = await User.findOne({ clerkId: req.userId });
-    
+
     if (!user) {
-      console.log('getCurrentUser: User not found in DB, creating new user');
+      logger.info('getCurrentUser: User not found in DB, creating new user', { userId: req.userId });
       // Create new user if doesn't exist
       user = await User.create({
         clerkId: req.userId,
@@ -30,8 +31,8 @@ export const getCurrentUser = async (req, res) => {
         profileImage: clerkUser.imageUrl || '',
         role: 'freelancer', // Default role
       });
-      console.log('getCurrentUser: New user created:', user._id);
-      
+      logger.info('getCurrentUser: New user created', { mongoId: user._id });
+
       // ✅ FIX: Set Clerk metadata when creating new user
       try {
         await clerkClient.users.updateUserMetadata(req.userId, {
@@ -40,16 +41,16 @@ export const getCurrentUser = async (req, res) => {
             mongoId: user._id.toString()
           }
         });
-        console.log('getCurrentUser: Clerk metadata set for new user');
+        logger.info('getCurrentUser: Clerk metadata set for new user');
       } catch (metadataError) {
-        console.error('getCurrentUser: Error setting Clerk metadata:', metadataError);
+        logger.error('getCurrentUser: Error setting Clerk metadata:', metadataError);
       }
     } else {
-      console.log('getCurrentUser: Existing user found:', user._id);
-      
+      logger.debug('getCurrentUser: Existing user found', { mongoId: user._id });
+
       // ✅ FIX: Check if Clerk metadata exists, set it if missing
       if (!clerkUser.publicMetadata?.role || !clerkUser.publicMetadata?.mongoId) {
-        console.log('getCurrentUser: Clerk metadata missing, updating...');
+        logger.info('getCurrentUser: Clerk metadata missing, updating...');
         try {
           await clerkClient.users.updateUserMetadata(req.userId, {
             publicMetadata: {
@@ -57,9 +58,9 @@ export const getCurrentUser = async (req, res) => {
               mongoId: user._id.toString()
             }
           });
-          console.log('getCurrentUser: Clerk metadata updated for existing user');
+          logger.info('getCurrentUser: Clerk metadata updated for existing user');
         } catch (metadataError) {
-          console.error('getCurrentUser: Error updating Clerk metadata:', metadataError);
+          logger.error('getCurrentUser: Error updating Clerk metadata:', metadataError);
         }
       }
     }
@@ -69,11 +70,11 @@ export const getCurrentUser = async (req, res) => {
       user: user,  // Changed from 'data' to 'user' for consistency
     });
   } catch (error) {
-    console.error('Get current user error:', error);
+    logger.error('Get current user error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching user',
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -93,13 +94,13 @@ export const updateCurrentUser = async (req, res) => {
       portfolio,
     } = req.body;
 
-    console.log('updateCurrentUser: userId:', req.userId);
+    logger.debug('updateCurrentUser: userId:', { userId: req.userId });
 
     // Find user
     const user = await User.findOne({ clerkId: req.userId });
 
     if (!user) {
-      console.log('updateCurrentUser: User not found in DB');
+      logger.warn('updateCurrentUser: User not found in DB', { userId: req.userId });
       return res.status(404).json({
         success: false,
         message: 'User not found',
@@ -119,7 +120,7 @@ export const updateCurrentUser = async (req, res) => {
     if (portfolio) user.portfolio = portfolio;
 
     await user.save();
-    console.log('updateCurrentUser: User updated successfully');
+    logger.info('updateCurrentUser: User updated successfully', { userId: user._id, roleChanged });
 
     // ✅ FIX: Update Clerk metadata if role changed or on any profile update
     if (roleChanged || role) {
@@ -130,9 +131,9 @@ export const updateCurrentUser = async (req, res) => {
             mongoId: user._id.toString()
           }
         });
-        console.log('updateCurrentUser: Clerk metadata updated');
+        logger.info('updateCurrentUser: Clerk metadata updated');
       } catch (metadataError) {
-        console.error('updateCurrentUser: Error updating Clerk metadata:', metadataError);
+        logger.error('updateCurrentUser: Error updating Clerk metadata:', metadataError);
         // Don't fail the request if metadata update fails
       }
     }
@@ -143,11 +144,11 @@ export const updateCurrentUser = async (req, res) => {
       message: 'Profile updated successfully',
     });
   } catch (error) {
-    console.error('Update user error:', error);
+    logger.error('Update user error:', error);
     res.status(500).json({
       success: false,
       message: 'Error updating profile',
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -157,30 +158,30 @@ export const updateCurrentUser = async (req, res) => {
 // @access  Public
 export const getUserById = async (req, res) => {
   try {
-    console.log('getUserById: Fetching user with ID:', req.params.id);
-    
+    logger.debug('getUserById: Fetching user with ID:', { userId: req.params.id });
+
     const user = await User.findById(req.params.id).select('-__v');
 
     if (!user) {
-      console.log('getUserById: User not found');
+      logger.warn('getUserById: User not found', { userId: req.params.id });
       return res.status(404).json({
         success: false,
         message: 'User not found',
       });
     }
 
-    console.log('getUserById: User found:', user._id);
+    logger.debug('getUserById: User found', { userId: user._id });
 
     res.status(200).json({
       success: true,
       user: user,  // Changed from 'data' to 'user' for consistency
     });
   } catch (error) {
-    console.error('Get user by ID error:', error);
+    logger.error('Get user by ID error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fetching user',
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };
@@ -188,19 +189,28 @@ export const getUserById = async (req, res) => {
 // @desc    Manually fix metadata for existing users (TEMPORARY ENDPOINT)
 // @route   POST /api/users/fix-metadata
 // @access  Private
+// ⚠️ DEPRECATED: This endpoint should be removed in production
+// It was only for debugging metadata issues
 export const fixUserMetadata = async (req, res) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(404).json({
+      success: false,
+      message: 'Endpoint not available in production'
+    });
+  }
+
   try {
-    console.log('fixUserMetadata: Fixing metadata for user:', req.userId);
-    
+    logger.info('fixUserMetadata: Fixing metadata for user', { userId: req.userId });
+
     const user = await User.findOne({ clerkId: req.userId });
-    
+
     if (!user) {
       return res.status(404).json({
         success: false,
         message: 'User not found in database'
       });
     }
-    
+
     // Update Clerk metadata
     await clerkClient.users.updateUserMetadata(req.userId, {
       publicMetadata: {
@@ -208,9 +218,9 @@ export const fixUserMetadata = async (req, res) => {
         mongoId: user._id.toString()
       }
     });
-    
-    console.log('fixUserMetadata: Metadata updated successfully');
-    
+
+    logger.info('fixUserMetadata: Metadata updated successfully');
+
     res.status(200).json({
       success: true,
       message: 'Metadata fixed successfully',
@@ -220,11 +230,11 @@ export const fixUserMetadata = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error('Fix metadata error:', error);
+    logger.error('Fix metadata error:', error);
     res.status(500).json({
       success: false,
       message: 'Error fixing metadata',
-      error: error.message,
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
     });
   }
 };

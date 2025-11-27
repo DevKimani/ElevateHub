@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import { ClerkProvider } from '@clerk/clerk-react';
 import { SocketProvider } from './context/SocketContext';
+import ErrorBoundary from './components/ErrorBoundary';
 import App from './App';
 import './index.css';
 
@@ -14,12 +15,14 @@ if (!clerkPubKey) {
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <ClerkProvider publishableKey={clerkPubKey}>
-      <BrowserRouter>
-        <SocketProvider>
-          <App />
-        </SocketProvider>
-      </BrowserRouter>
-    </ClerkProvider>
+    <ErrorBoundary>
+      <ClerkProvider publishableKey={clerkPubKey}>
+        <BrowserRouter>
+          <SocketProvider>
+            <App />
+          </SocketProvider>
+        </BrowserRouter>
+      </ClerkProvider>
+    </ErrorBoundary>
   </React.StrictMode>
 );
