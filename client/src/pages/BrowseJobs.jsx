@@ -1,320 +1,325 @@
+// client/src/pages/BrowseJobs.jsx
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { jobService } from '../services/jobService';
-import { Search, Filter, Briefcase, DollarSign, Calendar, MapPin } from 'lucide-react';
+import api from '../services/api';
 
-const categories = [
-  'All Categories',
-  'Web Development',
-  'Mobile Development',
-  'Design & Creative',
-  'Writing & Content',
-  'Digital Marketing',
-  'Data & Analytics',
-  'Admin & Customer Support',
-  'Other',
-];
-
-export default function BrowseJobs() {
+function BrowseJobs() {
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
+    category: 'all',
     search: '',
-    category: '',
-    budgetMin: '',
-    budgetMax: '',
-    page: 1,
+    minBudget: '',
+    maxBudget: ''
   });
-  const [pagination, setPagination] = useState({});
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 20,
+    total: 0,
+    pages: 1
+  });
 
   useEffect(() => {
     fetchJobs();
-  }, [filters]);
+  }, [pagination.page, filters]);
 
   const fetchJobs = async () => {
     try {
       setLoading(true);
-      const queryFilters = { ...filters };
-      
-      // Remove empty values
-      Object.keys(queryFilters).forEach(key => {
-        if (queryFilters[key] === '' || queryFilters[key] === 'All Categories') {
-          delete queryFilters[key];
-        }
+      setError(null);
+
+      // Build query params
+      const params = new URLSearchParams({
+        page: pagination.page,
+        limit: pagination.limit
       });
 
-      const response = await jobService.getAllJobs(queryFilters);
-      setJobs(response.data);
-      setPagination(response.pagination);
-    } catch (error) {
-      console.error('Error fetching jobs:', error);
+      if (filters.category && filters.category !== 'all') {
+        params.append('category', filters.category);
+      }
+      if (filters.search) {
+        params.append('search', filters.search);
+      }
+      if (filters.minBudget) {
+        params.append('minBudget', filters.minBudget);
+      }
+      if (filters.maxBudget) {
+        params.append('maxBudget', filters.maxBudget);
+      }
+
+      const response = await api.get(`/jobs?${params.toString()}`);
+      
+      console.log('Jobs response:', response.data);
+
+      // ✅ CRITICAL: Access response.data.jobs (the API returns { success, jobs, pagination })
+      setJobs(response.data.jobs || []);
+      setPagination(response.data.pagination || {
+        page: 1,
+        limit: 20,
+        total: 0,
+        pages: 1
+      });
+
+    } catch (err) {
+      console.error('Error fetching jobs:', err);
+      setError(err.response?.data?.message || 'Failed to load jobs');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleSearchChange = (e) => {
-    setFilters({ ...filters, search: e.target.value, page: 1 });
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    setPagination(prev => ({ ...prev, page: 1 })); // Reset to page 1 when filtering
   };
 
-  const handleCategoryChange = (category) => {
-    setFilters({ 
-      ...filters, 
-      category: category === 'All Categories' ? '' : category,
-      page: 1 
-    });
+  const handleSearch = (e) => {
+    e.preventDefault();
+    fetchJobs();
   };
 
-  const handleBudgetChange = (e) => {
-    setFilters({ ...filters, [e.target.name]: e.target.value, page: 1 });
-  };
+  if (loading && jobs.length === 0) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading jobs...</p>
+        </div>
+      </div>
+    );
+  }
 
-  const clearFilters = () => {
-    setFilters({
-      search: '',
-      category: '',
-      budgetMin: '',
-      budgetMax: '',
-      page: 1,
-    });
-  };
-
-  const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    });
-  };
-
-  const formatBudget = (amount) => {
-    return new Intl.NumberFormat('en-KE', {
-      style: 'currency',
-      currency: 'KES',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
+  if (error) {
+    return (
+      <div className="flex justify-center items-center min-h-screen">
+        <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
+          <h3 className="text-red-800 font-semibold mb-2">Error Loading Jobs</h3>
+          <p className="text-red-700">{error}</p>
+          <button 
+            onClick={fetchJobs}
+            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+          >
+            Try Again
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Browse Jobs
-          </h1>
-          <p className="text-gray-600">
-            Find your next opportunity from {pagination.total || 0} available jobs
-          </p>
-        </div>
+    <div className="max-w-7xl mx-auto p-6">
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold mb-2">Browse Jobs</h1>
+        <p className="text-gray-600">
+          {pagination.total} {pagination.total === 1 ? 'job' : 'jobs'} available
+        </p>
+      </div>
 
-        {/* Search and Filters */}
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          {/* Search Bar */}
-          <div className="mb-4">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" size={20} />
-              <input
-                type="text"
-                placeholder="Search jobs by title or description..."
-                value={filters.search}
-                onChange={handleSearchChange}
-                className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-              />
-            </div>
+      {/* Filters */}
+      <div className="bg-white rounded-lg shadow p-6 mb-6">
+        <form onSubmit={handleSearch} className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Search */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Search
+            </label>
+            <input
+              type="text"
+              name="search"
+              value={filters.search}
+              onChange={handleFilterChange}
+              placeholder="Search jobs..."
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
           </div>
 
-          {/* Category Filter */}
-          <div className="mb-4">
+          {/* Category */}
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              <Filter size={16} className="inline mr-1" />
               Category
             </label>
-            <div className="flex flex-wrap gap-2">
-              {categories.map((cat) => (
-                <button
-                  key={cat}
-                  onClick={() => handleCategoryChange(cat)}
-                  className={`px-4 py-2 rounded-full text-sm font-medium transition-all ${
-                    (cat === 'All Categories' && !filters.category) || filters.category === cat
-                      ? 'bg-primary-600 text-white'
-                      : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                  }`}
-                >
-                  {cat}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Budget Filter */}
-          <div className="grid md:grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Min Budget (KES)
-              </label>
-              <input
-                type="number"
-                name="budgetMin"
-                value={filters.budgetMin}
-                onChange={handleBudgetChange}
-                placeholder="e.g., 10000"
-                className="input"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Max Budget (KES)
-              </label>
-              <input
-                type="number"
-                name="budgetMax"
-                value={filters.budgetMax}
-                onChange={handleBudgetChange}
-                placeholder="e.g., 100000"
-                className="input"
-              />
-            </div>
-            <div className="flex items-end">
-              <button
-                onClick={clearFilters}
-                className="w-full btn-secondary"
-              >
-                Clear Filters
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Jobs List */}
-        {loading ? (
-          <div className="text-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading jobs...</p>
-          </div>
-        ) : jobs.length === 0 ? (
-          <div className="bg-white rounded-lg shadow-md p-12 text-center">
-            <Briefcase size={48} className="mx-auto text-gray-400 mb-4" />
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              No jobs found
-            </h3>
-            <p className="text-gray-600 mb-4">
-              Try adjusting your filters or search criteria
-            </p>
-            <button onClick={clearFilters} className="btn-primary">
-              Clear Filters
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {jobs.map((job) => (
-              <Link
-                key={job._id}
-                to={`/jobs/${job._id}`}
-                className="block bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow p-6"
-              >
-                <div className="flex justify-between items-start mb-4">
-                  <div className="flex-1">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 hover:text-primary-600">
-                      {job.title}
-                    </h3>
-                    <div className="flex flex-wrap gap-4 text-sm text-gray-600 mb-3">
-                      <span className="flex items-center">
-                        <Briefcase size={16} className="mr-1" />
-                        {job.category}
-                      </span>
-                      <span className="flex items-center">
-                        <DollarSign size={16} className="mr-1" />
-                        {formatBudget(job.budget)} ({job.budgetType})
-                      </span>
-                      <span className="flex items-center">
-                        <Calendar size={16} className="mr-1" />
-                        Due: {formatDate(job.deadline)}
-                      </span>
-                      {job.postedBy?.location && (
-                        <span className="flex items-center">
-                          <MapPin size={16} className="mr-1" />
-                          {job.postedBy.location}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="ml-4">
-                    <span className="inline-block px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                      {job.status}
-                    </span>
-                  </div>
-                </div>
-
-                <p className="text-gray-700 mb-4 line-clamp-2">
-                  {job.description}
-                </p>
-
-                {job.skills && job.skills.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-4">
-                    {job.skills.map((skill, index) => (
-                      <span
-                        key={index}
-                        className="px-3 py-1 bg-primary-50 text-primary-700 rounded-full text-sm"
-                      >
-                        {skill}
-                      </span>
-                    ))}
-                  </div>
-                )}
-
-                <div className="flex items-center justify-between pt-4 border-t">
-                  <div className="flex items-center">
-                    {job.postedBy?.profileImage && (
-                      <img
-                        src={job.postedBy.profileImage}
-                        alt={job.postedBy.firstName}
-                        className="w-10 h-10 rounded-full mr-3"
-                      />
-                    )}
-                    <div>
-                      <p className="font-medium text-gray-900">
-                        {job.postedBy?.firstName} {job.postedBy?.lastName}
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Posted {formatDate(job.createdAt)}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm text-gray-600">
-                      {job.applicationsCount || 0} applications
-                    </p>
-                  </div>
-                </div>
-              </Link>
-            ))}
-          </div>
-        )}
-
-        {/* Pagination */}
-        {pagination.pages > 1 && (
-          <div className="mt-8 flex justify-center gap-2">
-            <button
-              onClick={() => setFilters({ ...filters, page: filters.page - 1 })}
-              disabled={filters.page === 1}
-              className="px-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+            <select
+              name="category"
+              value={filters.category}
+              onChange={handleFilterChange}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
-              Previous
-            </button>
-            <span className="px-4 py-2 bg-white border border-gray-300 rounded-lg">
-              Page {pagination.page} of {pagination.pages}
-            </span>
-            <button
-              onClick={() => setFilters({ ...filters, page: filters.page + 1 })}
-              disabled={filters.page === pagination.pages}
-              className="px-4 py-2 bg-white border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
-            >
-              Next
-            </button>
+              <option value="all">All Categories</option>
+              <option value="Web Development">Web Development</option>
+              <option value="Mobile Development">Mobile Development</option>
+              <option value="Design">Design</option>
+              <option value="Writing">Writing</option>
+              <option value="Marketing">Marketing</option>
+              <option value="Data Entry">Data Entry</option>
+              <option value="Virtual Assistant">Virtual Assistant</option>
+              <option value="Other">Other</option>
+            </select>
           </div>
-        )}
+
+          {/* Min Budget */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Min Budget (KES)
+            </label>
+            <input
+              type="number"
+              name="minBudget"
+              value={filters.minBudget}
+              onChange={handleFilterChange}
+              placeholder="0"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          {/* Max Budget */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Max Budget (KES)
+            </label>
+            <input
+              type="number"
+              name="maxBudget"
+              value={filters.maxBudget}
+              onChange={handleFilterChange}
+              placeholder="100000"
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </form>
       </div>
+
+      {/* Jobs List */}
+      {jobs.length === 0 ? (
+        <div className="bg-white rounded-lg shadow p-12 text-center">
+          <svg 
+            className="mx-auto h-12 w-12 text-gray-400" 
+            fill="none" 
+            stroke="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path 
+              strokeLinecap="round" 
+              strokeLinejoin="round" 
+              strokeWidth={2} 
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
+            />
+          </svg>
+          <h3 className="mt-4 text-lg font-medium text-gray-900">No jobs found</h3>
+          <p className="mt-2 text-gray-500">Try adjusting your filters or search terms</p>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {jobs.map((job) => (
+            <div 
+              key={job._id} 
+              className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6"
+            >
+              <div className="flex justify-between items-start mb-4">
+                <div className="flex-1">
+                  <Link 
+                    to={`/jobs/${job._id}`}
+                    className="text-xl font-semibold text-gray-900 hover:text-blue-600"
+                  >
+                    {job.title}
+                  </Link>
+                  <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                    <span className="flex items-center gap-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                      {job.client?.firstName} {job.client?.lastName}
+                    </span>
+                    {job.client?.location && (
+                      <span className="flex items-center gap-1">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                        {job.client.location}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-blue-600">
+                    KES {job.budget.toLocaleString()}
+                  </div>
+                  <span className="inline-block mt-2 px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
+                    {job.status}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-gray-700 mb-4 line-clamp-2">
+                {job.description}
+              </p>
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
+                  {job.category}
+                </span>
+                {job.skills && job.skills.map((skill, index) => (
+                  <span 
+                    key={index}
+                    className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full"
+                  >
+                    {skill}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex justify-between items-center text-sm text-gray-500">
+                <span>
+                  Posted {new Date(job.createdAt).toLocaleDateString()}
+                </span>
+                {job.deadline && (
+                  <span>
+                    Deadline: {new Date(job.deadline).toLocaleDateString()}
+                  </span>
+                )}
+                <Link 
+                  to={`/jobs/${job._id}`}
+                  className="text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  View Details →
+                </Link>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {pagination.pages > 1 && (
+        <div className="mt-8 flex justify-center gap-2">
+          <button
+            onClick={() => setPagination(prev => ({ ...prev, page: prev.page - 1 }))}
+            disabled={!pagination.hasPrev}
+            className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          >
+            Previous
+          </button>
+          
+          <span className="px-4 py-2 bg-white border border-gray-300 rounded-lg">
+            Page {pagination.page} of {pagination.pages}
+          </span>
+
+          <button
+            onClick={() => setPagination(prev => ({ ...prev, page: prev.page + 1 }))}
+            disabled={!pagination.hasNext}
+            className="px-4 py-2 border border-gray-300 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   );
 }
+
+export default BrowseJobs;
