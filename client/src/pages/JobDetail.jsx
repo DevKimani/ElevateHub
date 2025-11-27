@@ -7,34 +7,34 @@ import api from '../services/api';
 function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   
   const [job, setJob] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [hasApplied, setHasApplied] = useState(false);
   const [checkingApplication, setCheckingApplication] = useState(false);
 
+  // ✅ Get role from Clerk user metadata
+  const userRole = user?.publicMetadata?.role;
+  const mongoId = user?.publicMetadata?.mongoId;
+
+  console.log('User from Clerk:', {
+    userId: user?.id,
+    role: userRole,
+    mongoId: mongoId,
+    isLoaded: isLoaded
+  });
+
   useEffect(() => {
     fetchJobDetail();
-    fetchCurrentUser();
   }, [id]);
 
   useEffect(() => {
-    if (job && user && currentUser?.role === 'freelancer') {
+    if (job && user && userRole === 'freelancer') {
       checkIfApplied();
     }
-  }, [job, user, currentUser]);
-
-  const fetchCurrentUser = async () => {
-    try {
-      const response = await api.get('/users/me');
-      setCurrentUser(response.data.user);
-    } catch (err) {
-      console.error('Error fetching current user:', err);
-    }
-  };
+  }, [job, user, userRole]);
 
   const fetchJobDetail = async () => {
     try {
@@ -128,11 +128,21 @@ function JobDetail() {
     );
   }
 
-  // ✅ FIXED: Properly check user role
-  const isClient = currentUser?.role === 'client';
-  const isFreelancer = currentUser?.role === 'freelancer';
-  const isOwner = isClient && job.client?._id === currentUser?._id;
+  // ✅ FIXED: Use Clerk metadata for role checking
+  const isClient = userRole === 'client';
+  const isFreelancer = userRole === 'freelancer';
+  const isOwner = isClient && job.client?._id === mongoId;
   const canApply = isFreelancer && job.status === 'open' && !hasApplied;
+
+  console.log('Role checks:', {
+    isClient,
+    isFreelancer,
+    isOwner,
+    canApply,
+    jobClientId: job.client?._id,
+    userMongoId: mongoId,
+    userRole: userRole
+  });
 
   return (
     <div className="max-w-4xl mx-auto p-6">
@@ -146,6 +156,18 @@ function JobDetail() {
         </svg>
         Back
       </button>
+
+      {/* Debug Info (remove after testing) */}
+      {process.env.NODE_ENV === 'development' && (
+        <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded text-xs">
+          <p><strong>Debug:</strong></p>
+          <p>User Role: {userRole || 'undefined'}</p>
+          <p>Is Client: {isClient ? 'Yes' : 'No'}</p>
+          <p>Is Freelancer: {isFreelancer ? 'Yes' : 'No'}</p>
+          <p>Is Owner: {isOwner ? 'Yes' : 'No'}</p>
+          <p>Can Apply: {canApply ? 'Yes' : 'No'}</p>
+        </div>
+      )}
 
       {/* Job Header */}
       <div className="bg-white rounded-lg shadow-lg p-8 mb-6">
@@ -271,7 +293,24 @@ function JobDetail() {
 
       {/* Action Buttons */}
       <div className="bg-white rounded-lg shadow-lg p-8">
-        {isOwner ? (
+        {!isLoaded ? (
+          // Clerk not loaded yet
+          <div className="text-center p-4">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+            <p className="mt-2 text-gray-600">Loading...</p>
+          </div>
+        ) : !user ? (
+          // Not logged in
+          <div className="text-center p-4 bg-gray-50 border border-gray-200 rounded-lg">
+            <p className="text-gray-600 mb-3">Please sign in to apply for this job</p>
+            <Link
+              to="/sign-in"
+              className="inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Sign In
+            </Link>
+          </div>
+        ) : isOwner ? (
           // Client owns this job
           <div className="flex gap-4">
             <Link
@@ -329,14 +368,17 @@ function JobDetail() {
             )}
           </div>
         ) : (
-          // Not logged in
-          <div className="text-center p-4 bg-gray-50 border border-gray-200 rounded-lg">
-            <p className="text-gray-600">Please sign in to apply for this job</p>
+          // No role detected - show error
+          <div className="text-center p-4 bg-red-50 border border-red-200 rounded-lg">
+            <p className="text-red-800 font-medium mb-2">Profile Incomplete</p>
+            <p className="text-red-700 text-sm mb-3">
+              Your account doesn't have a role assigned. Please complete your profile.
+            </p>
             <Link
-              to="/sign-in"
-              className="mt-4 inline-block px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              to="/complete-profile"
+              className="inline-block px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
             >
-              Sign In
+              Complete Profile
             </Link>
           </div>
         )}

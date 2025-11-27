@@ -9,19 +9,12 @@ export const getConversations = async (req, res) => {
   try {
     const user = await User.findOne({ clerkId: req.userId });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
     const conversations = await Conversation.find({
       participants: user._id,
     })
       .populate('participants', 'firstName lastName profileImage')
-      .populate('lastMessage')
-      .sort({ updatedAt: -1 });
+      .populate('job', 'title')
+      .sort({ lastMessageAt: -1 });
 
     res.status(200).json({
       success: true,
@@ -45,35 +38,34 @@ export const getMessages = async (req, res) => {
     const { jobId, otherUserId } = req.params;
     const user = await User.findOne({ clerkId: req.userId });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
-    // Find or create conversation
-    let conversation = await Conversation.findOne({
+    const messages = await Message.find({
       job: jobId,
-      participants: { $all: [user._id, otherUserId] },
-    });
-
-    if (!conversation) {
-      conversation = await Conversation.create({
-        job: jobId,
-        participants: [user._id, otherUserId],
-      });
-    }
-
-    // Get messages
-    const messages = await Message.find({ conversation: conversation._id })
+      $or: [
+        { sender: user._id, receiver: otherUserId },
+        { sender: otherUserId, receiver: user._id },
+      ],
+    })
       .populate('sender', 'firstName lastName profileImage')
+      .populate('receiver', 'firstName lastName profileImage')
       .sort({ createdAt: 1 });
+
+    // Mark messages as read
+    await Message.updateMany(
+      {
+        job: jobId,
+        sender: otherUserId,
+        receiver: user._id,
+        read: false,
+      },
+      {
+        read: true,
+        readAt: new Date(),
+      }
+    );
 
     res.status(200).json({
       success: true,
       data: messages,
-      conversationId: conversation._id,
     });
   } catch (error) {
     console.error('Get messages error:', error);
@@ -90,44 +82,57 @@ export const getMessages = async (req, res) => {
 // @access  Private
 export const sendMessage = async (req, res) => {
   try {
-    const { conversationId, content } = req.body;
+    const { receiverId, jobId, content } = req.body;
     const user = await User.findOne({ clerkId: req.userId });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found',
-      });
-    }
-
-    // Validate required fields
-    if (!conversationId || !content) {
+    if (!receiverId || !jobId || !content) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide conversation ID and message content',
+        message: 'Please provide receiver, job, and content',
       });
     }
 
     // Create message
     const message = await Message.create({
-      conversation: conversationId,
       sender: user._id,
+      receiver: receiverId,
+      job: jobId,
       content,
     });
 
-    // Update conversation's last message
-    await Conversation.findByIdAndUpdate(conversationId, {
-      lastMessage: message._id,
-      updatedAt: new Date(),
+    await message.populate('sender', 'firstName lastName profileImage');
+    await message.populate('receiver', 'firstName lastName profileImage');
+
+    // Update or create conversation
+    let conversation = await Conversation.findOne({
+      participants: { $all: [user._id, receiverId] },
+      job: jobId,
     });
 
-    // Populate sender info
-    await message.populate('sender', 'firstName lastName profileImage');
+    if (!conversation) {
+      conversation = await Conversation.create({
+        participants: [user._id, receiverId],
+        job: jobId,
+        lastMessage: content,
+        lastMessageAt: new Date(),
+        unreadCount: {
+          [receiverId]: 1,
+        },
+      });
+    } else {
+      conversation.lastMessage = content;
+      conversation.lastMessageAt = new Date();
+      
+      // Increment unread count for receiver
+      const currentUnread = conversation.unreadCount.get(receiverId.toString()) || 0;
+      conversation.unreadCount.set(receiverId.toString(), currentUnread + 1);
+      
+      await conversation.save();
+    }
 
     res.status(201).json({
       success: true,
       data: message,
-      message: 'Message sent successfully',
     });
   } catch (error) {
     console.error('Send message error:', error);
@@ -147,34 +152,28 @@ export const markAsRead = async (req, res) => {
     const { conversationId } = req.params;
     const user = await User.findOne({ clerkId: req.userId });
 
-    if (!user) {
+    const conversation = await Conversation.findById(conversationId);
+    
+    if (!conversation) {
       return res.status(404).json({
         success: false,
-        message: 'User not found',
+        message: 'Conversation not found',
       });
     }
 
-    // Mark all messages in conversation as read for this user
-    await Message.updateMany(
-      {
-        conversation: conversationId,
-        sender: { $ne: user._id },
-        readBy: { $ne: user._id },
-      },
-      {
-        $push: { readBy: user._id },
-      }
-    );
+    // Reset unread count for current user
+    conversation.unreadCount.set(user._id.toString(), 0);
+    await conversation.save();
 
     res.status(200).json({
       success: true,
-      message: 'Messages marked as read',
+      message: 'Marked as read',
     });
   } catch (error) {
     console.error('Mark as read error:', error);
     res.status(500).json({
       success: false,
-      message: 'Error marking messages as read',
+      message: 'Error marking as read',
       error: error.message,
     });
   }
