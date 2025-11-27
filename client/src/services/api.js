@@ -122,4 +122,11 @@ export const handleApiError = (error) => {
   }
 };
 
+// BACKWARD COMPATIBILITY: Export setAuthToken for legacy code
+// This function is deprecated and does nothing - tokens are now handled automatically
+export const setAuthToken = () => {
+  console.warn('⚠️ setAuthToken() is deprecated. Tokens are now handled automatically by interceptors.');
+  // Do nothing - interceptors handle tokens automatically
+};
+
 export default api;
