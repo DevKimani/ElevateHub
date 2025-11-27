@@ -2,13 +2,13 @@
 import 'dotenv/config';
 import express from 'express';
 import http from 'http';
-import { Server } from 'socket.io';
 import cors from 'cors';
 import helmet from 'helmet';
 import mongoSanitize from 'express-mongo-sanitize';
 import rateLimit from 'express-rate-limit';
 import connectDB from './config/db.js';
 import { errorHandler, notFound } from './middleware/errorHandler.js';
+import { initializeSocket } from './socket/socketHandler.js';
 
 // Import routes
 import userRoutes from './routes/userRoutes.js';
@@ -107,27 +107,20 @@ app.get('/', (req, res) => {
 // ✅ CRITICAL: Register routes IN THE CORRECT ORDER
 // Specific routes MUST come before parameterized routes
 
-console.log('Registering routes...');
-
 // User routes
 app.use('/api/users', userRoutes);
-console.log('✓ User routes registered');
 
 // Job routes - REGISTER BEFORE OTHER ROUTES
 app.use('/api/jobs', jobRoutes);
-console.log('✓ Job routes registered');
 
 // Application routes
 app.use('/api/applications', applicationRoutes);
-console.log('✓ Application routes registered');
 
 // Message routes
 app.use('/api/messages', messageRoutes);
-console.log('✓ Message routes registered');
 
 // Transaction routes
 app.use('/api/transactions', transactionRoutes);
-console.log('✓ Transaction routes registered');
 
 // 404 handler (must be after all routes)
 app.use(notFound);
@@ -135,98 +128,23 @@ app.use(notFound);
 // Error handler (must be last)
 app.use(errorHandler);
 
-// Socket.IO configuration
-const io = new Server(server, {
-  cors: corsOptions,
-  transports: ['websocket', 'polling'],
-  pingTimeout: 60000,
-  pingInterval: 25000,
-  upgradeTimeout: 30000,
-  maxHttpBufferSize: 1e6,
-  allowEIO3: true
-});
-
-// Store online users
-const onlineUsers = new Map();
-
-// Socket.IO connection handling
-io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-
-  socket.on('user-online', (userId) => {
-    if (userId) {
-      onlineUsers.set(userId, socket.id);
-      io.emit('user-status-change', { userId, status: 'online' });
-      console.log(`User ${userId} is online`);
-    }
-  });
-
-  socket.on('join-conversation', (conversationId) => {
-    socket.join(conversationId);
-    console.log(`Socket ${socket.id} joined conversation: ${conversationId}`);
-  });
-
-  socket.on('send-message', (data) => {
-    const { conversationId, receiverId, message } = data;
-    
-    io.to(conversationId).emit('new-message', message);
-    
-    const receiverSocketId = onlineUsers.get(receiverId);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit('message-notification', {
-        conversationId,
-        message
-      });
-    }
-  });
-
-  socket.on('typing', (data) => {
-    const { conversationId, userId } = data;
-    socket.to(conversationId).emit('user-typing', { userId });
-  });
-
-  socket.on('stop-typing', (data) => {
-    const { conversationId, userId } = data;
-    socket.to(conversationId).emit('user-stop-typing', { userId });
-  });
-
-  socket.on('disconnect', (reason) => {
-    console.log('User disconnected:', socket.id, 'Reason:', reason);
-    
-    for (const [userId, socketId] of onlineUsers.entries()) {
-      if (socketId === socket.id) {
-        onlineUsers.delete(userId);
-        io.emit('user-status-change', { userId, status: 'offline' });
-        console.log(`User ${userId} went offline`);
-        break;
-      }
-    }
-  });
-
-  socket.on('error', (error) => {
-    console.error('Socket error:', error);
-  });
-});
+// Initialize Socket.IO
+const io = initializeSocket(server, corsOptions);
 
 // Make io accessible to routes
 app.set('io', io);
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
-  console.log('SIGTERM signal received: closing HTTP server');
+const gracefulShutdown = (signal) => {
+  console.log(`${signal} signal received: closing HTTP server`);
   server.close(() => {
     console.log('HTTP server closed');
     process.exit(0);
   });
-});
+};
 
-process.on('SIGINT', () => {
-  console.log('SIGINT signal received: closing HTTP server');
-  server.close(() => {
-    console.log('HTTP server closed');
-    process.exit(0);
-  });
-});
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 process.on('unhandledRejection', (err) => {
   console.error('Unhandled Promise Rejection:', err);

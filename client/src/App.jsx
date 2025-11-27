@@ -1,6 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
-import { SignedIn, SignedOut, UserButton } from '@clerk/clerk-react';
-import { Link } from 'react-router-dom';
+import { SignedIn } from '@clerk/clerk-react';
+import MainLayout from './components/layout/MainLayout';
 import HomePage from './pages/HomePage';
 import Dashboard from './pages/Dashboard';
 import CompleteProfile from './pages/CompleteProfile';
@@ -15,94 +15,58 @@ import JobApplications from './pages/JobApplications';
 import Messages from './pages/Messages';
 import Chat from './pages/Chat';
 
-
 function App() {
   return (
-    <div className="min-h-screen">
-      {/* Navigation */}
-      <nav className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <Link to="/" className="text-2xl font-bold text-primary-600">
-                ElevateHub
-              </Link>
-            </div>
-            <div className="flex items-center gap-4">
-              <SignedIn>
-                <Link to="/jobs" className="text-gray-700 hover:text-primary-600">
-                  Browse Jobs
-                </Link>
-                <Link to="/dashboard" className="text-gray-700 hover:text-primary-600">
-                  Dashboard
-                </Link>
-                <UserButton afterSignOutUrl="/" />
-              </SignedIn>
-              <SignedOut>
-                <Link to="/sign-in" className="btn-secondary">
-                  Sign In
-                </Link>
-                <Link to="/sign-up" className="btn-primary">
-                  Sign Up
-                </Link>
-              </SignedOut>
-            </div>
-          </div>
-        </div>
-      </nav>
-
-      {/* Main Content */}
-      <main>
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/sign-up/*" element={<SignUpPage />} />
-          <Route path="/sign-in/*" element={<SignInPage />} />
-          <Route path="/jobs" element={<BrowseJobs />} />
-          <Route path="/jobs/:id" element={<JobDetail />} />
-          <Route path="/jobs/:jobId/applications" element={
-            <SignedIn>
-              <JobApplications />
-            </SignedIn>
-          } />
-          <Route path="/complete-profile" element={
-            <SignedIn>
-              <CompleteProfile />
-            </SignedIn>
-          } />
-          <Route path="/dashboard" element={
-            <SignedIn>
-              <Dashboard />
-            </SignedIn>
-          } />
-          <Route path="/post-job" element={
-            <SignedIn>
-              <PostJob />
-            </SignedIn>
-          } />
-          <Route path="/my-jobs" element={
-            <SignedIn>
-              <MyJobs />
-            </SignedIn>
-          } />
-          <Route path="/my-applications" element={
-            <SignedIn>
-              <MyApplications />
-            </SignedIn>
-          } />
-          {/* Messages routes - ADD THESE */}
-          <Route path="/messages" element={
-            <SignedIn>
-              <Messages />
-            </SignedIn>
-          } />
-          <Route path="/messages/:jobId/:otherUserId" element={
-            <SignedIn>
-              <Chat />
-            </SignedIn>
-          } />
-        </Routes>
-      </main>
-    </div>
+    <MainLayout>
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/sign-up/*" element={<SignUpPage />} />
+        <Route path="/sign-in/*" element={<SignInPage />} />
+        <Route path="/jobs" element={<BrowseJobs />} />
+        <Route path="/jobs/:id" element={<JobDetail />} />
+        <Route path="/jobs/:jobId/applications" element={
+          <SignedIn>
+            <JobApplications />
+          </SignedIn>
+        } />
+        <Route path="/complete-profile" element={
+          <SignedIn>
+            <CompleteProfile />
+          </SignedIn>
+        } />
+        <Route path="/dashboard" element={
+          <SignedIn>
+            <Dashboard />
+          </SignedIn>
+        } />
+        <Route path="/post-job" element={
+          <SignedIn>
+            <PostJob />
+          </SignedIn>
+        } />
+        <Route path="/my-jobs" element={
+          <SignedIn>
+            <MyJobs />
+          </SignedIn>
+        } />
+        <Route path="/my-applications" element={
+          <SignedIn>
+            <MyApplications />
+          </SignedIn>
+        } />
+        {/* Messages routes */}
+        <Route path="/messages" element={
+          <SignedIn>
+            <Messages />
+          </SignedIn>
+        } />
+        <Route path="/messages/:jobId/:otherUserId" element={
+          <SignedIn>
+            <Chat />
+          </SignedIn>
+        } />
+      </Routes>
+    </MainLayout>
   );
 }
 
