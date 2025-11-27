@@ -23,7 +23,7 @@ export default function Messages() {
       // Fetch current user
       const userResponse = await userService.getCurrentUser();
       if (!isMountedRef.current) return;
-      setCurrentUser(userResponse.data);
+      setCurrentUser(userResponse.user);
 
       // Fetch conversations
       const convResponse = await messageService.getConversations();
@@ -52,7 +52,7 @@ export default function Messages() {
 
   const formatTime = (date) => {
     if (!date) return '';
-    
+
     const messageDate = new Date(date);
     const now = new Date();
     const diffInHours = (now - messageDate) / (1000 * 60 * 60);
@@ -82,7 +82,7 @@ export default function Messages() {
     if (!conv) return false;
     const otherUser = getOtherParticipant(conv);
     if (!otherUser) return false;
-    
+
     const searchLower = searchQuery.toLowerCase();
     return (
       otherUser?.firstName?.toLowerCase().includes(searchLower) ||
@@ -137,8 +137,8 @@ export default function Messages() {
               {searchQuery ? 'No conversations found' : 'No messages yet'}
             </h3>
             <p className="text-gray-600 mb-4">
-              {searchQuery 
-                ? 'Try a different search term' 
+              {searchQuery
+                ? 'Try a different search term'
                 : 'Start chatting with clients or freelancers on your active jobs'}
             </p>
             <Link to="/jobs" className="btn-primary inline-block">
@@ -149,12 +149,12 @@ export default function Messages() {
           <div className="bg-white rounded-xl shadow-md overflow-hidden">
             {filteredConversations.map((conversation) => {
               const otherUser = getOtherParticipant(conversation);
-              
+
               // Skip if missing required data
               if (!otherUser || !conversation.job) {
                 return null;
               }
-              
+
               // Handle unreadCount which might be a Map or plain object
               let unreadCount = 0;
               if (conversation.unreadCount) {
@@ -198,9 +198,8 @@ export default function Messages() {
                     </p>
                     <div className="flex items-center justify-between">
                       <p
-                        className={`text-sm truncate ${
-                          unreadCount > 0 ? 'font-semibold text-gray-900' : 'text-gray-600'
-                        }`}
+                        className={`text-sm truncate ${unreadCount > 0 ? 'font-semibold text-gray-900' : 'text-gray-600'
+                          }`}
                       >
                         {conversation.lastMessage?.content || 'No messages yet'}
                       </p>

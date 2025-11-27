@@ -29,22 +29,6 @@ function MyJobs() {
         limit: pagination.limit
       });
 
-      if (filter !== 'all') {
-        params.append('status', filter);
-      }
-
-      const response = await api.get(`/jobs/my-jobs?${params.toString()}`);
-      
-      console.log('My jobs response:', response.data);
-
-      // ✅ Access response.data.jobs
-      setJobs(response.data.jobs || []);
-      setPagination(response.data.pagination || {
-        page: 1,
-        limit: 20,
-        total: 0,
-        pages: 1
-      });
 
     } catch (err) {
       console.error('Error fetching my jobs:', err);
@@ -82,7 +66,7 @@ function MyJobs() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
           <h3 className="text-red-800 font-semibold mb-2">Error Loading Jobs</h3>
           <p className="text-red-700">{error}</p>
-          <button 
+          <button
             onClick={fetchMyJobs}
             className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
           >
@@ -121,11 +105,10 @@ function MyJobs() {
                 setFilter(status);
                 setPagination(prev => ({ ...prev, page: 1 }));
               }}
-              className={`px-6 py-4 font-medium capitalize transition-colors ${
-                filter === status
+              className={`px-6 py-4 font-medium capitalize transition-colors ${filter === status
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
-              }`}
+                }`}
             >
               {status.replace('_', ' ')}
             </button>
@@ -136,22 +119,22 @@ function MyJobs() {
       {/* Jobs List */}
       {jobs.length === 0 ? (
         <div className="bg-white rounded-lg shadow p-12 text-center">
-          <svg 
-            className="mx-auto h-16 w-16 text-gray-400" 
-            fill="none" 
-            stroke="currentColor" 
+          <svg
+            className="mx-auto h-16 w-16 text-gray-400"
+            fill="none"
+            stroke="currentColor"
             viewBox="0 0 24 24"
           >
-            <path 
-              strokeLinecap="round" 
-              strokeLinejoin="round" 
-              strokeWidth={2} 
-              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
             />
           </svg>
           <h3 className="mt-4 text-lg font-medium text-gray-900">No jobs yet</h3>
           <p className="mt-2 text-gray-500">
-            {filter === 'all' 
+            {filter === 'all'
               ? "You haven't posted any jobs yet"
               : `No ${filter.replace('_', ' ')} jobs`}
           </p>
@@ -167,13 +150,13 @@ function MyJobs() {
       ) : (
         <div className="space-y-4">
           {jobs.map((job) => (
-            <div 
-              key={job._id} 
+            <div
+              key={job._id}
               className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow p-6"
             >
               <div className="flex justify-between items-start mb-4">
                 <div className="flex-1">
-                  <Link 
+                  <Link
                     to={`/jobs/${job._id}`}
                     className="text-xl font-semibold text-gray-900 hover:text-blue-600"
                   >
@@ -225,7 +208,7 @@ function MyJobs() {
               {job.skills && job.skills.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-4">
                   {job.skills.map((skill, index) => (
-                    <span 
+                    <span
                       key={index}
                       className="px-3 py-1 bg-gray-100 text-gray-700 text-sm rounded-full"
                     >
@@ -254,7 +237,7 @@ function MyJobs() {
                       View Applications ({job.applicationsCount})
                     </Link>
                   )}
-                  <Link 
+                  <Link
                     to={`/jobs/${job._id}`}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                   >
@@ -277,7 +260,7 @@ function MyJobs() {
           >
             Previous
           </button>
-          
+
           <span className="px-4 py-2 bg-white border border-gray-300 rounded-lg">
             Page {pagination.page} of {pagination.pages}
           </span>

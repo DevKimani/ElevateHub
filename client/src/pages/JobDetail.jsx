@@ -8,7 +8,7 @@ function JobDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user, isLoaded } = useUser();
-  
+
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -42,10 +42,10 @@ function JobDetail() {
       setError(null);
 
       const response = await api.get(`/jobs/${id}`);
-      
+
       console.log('Job detail response:', response.data);
 
-      setJob(response.data.job);
+      setJob(response.job);
 
     } catch (err) {
       console.error('Error fetching job:', err);
@@ -58,16 +58,16 @@ function JobDetail() {
   const checkIfApplied = async () => {
     try {
       setCheckingApplication(true);
-      
+
       const response = await api.get('/applications/my-applications');
-      
+
       console.log('My applications:', response.data);
 
-      const applications = response.data.applications || [];
+      const applications = response.applications || [];
       const applied = applications.some(
         app => app.job?._id === id || app.job === id
       );
-      
+
       setHasApplied(applied);
 
     } catch (err) {
@@ -101,7 +101,7 @@ function JobDetail() {
           </svg>
           <h3 className="text-red-800 font-semibold mb-2">Job Not Found</h3>
           <p className="text-red-700 mb-4">{error}</p>
-          <button 
+          <button
             onClick={() => navigate('/browse-jobs')}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
@@ -117,7 +117,7 @@ function JobDetail() {
       <div className="flex justify-center items-center min-h-screen">
         <div className="text-center">
           <p className="text-gray-600">Job not found</p>
-          <button 
+          <button
             onClick={() => navigate('/browse-jobs')}
             className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
@@ -177,12 +177,11 @@ function JobDetail() {
               {job.title}
             </h1>
             <div className="flex items-center gap-4 text-gray-600">
-              <span className={`px-3 py-1 rounded-full text-sm ${
-                job.status === 'open' ? 'bg-green-100 text-green-800' :
-                job.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                job.status === 'completed' ? 'bg-purple-100 text-purple-800' :
-                'bg-gray-100 text-gray-800'
-              }`}>
+              <span className={`px-3 py-1 rounded-full text-sm ${job.status === 'open' ? 'bg-green-100 text-green-800' :
+                  job.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                    job.status === 'completed' ? 'bg-purple-100 text-purple-800' :
+                      'bg-gray-100 text-gray-800'
+                }`}>
                 {job.status.replace('_', ' ')}
               </span>
               <span className="px-3 py-1 bg-blue-100 text-blue-800 text-sm rounded-full">
@@ -203,8 +202,8 @@ function JobDetail() {
           <h3 className="text-sm font-medium text-gray-500 mb-2">Posted by</h3>
           <div className="flex items-center gap-3">
             {job.client?.profilePicture ? (
-              <img 
-                src={job.client.profilePicture} 
+              <img
+                src={job.client.profilePicture}
                 alt={`${job.client.firstName} ${job.client.lastName}`}
                 className="w-12 h-12 rounded-full"
               />
@@ -280,7 +279,7 @@ function JobDetail() {
           <h2 className="text-xl font-semibold mb-4">Skills Required</h2>
           <div className="flex flex-wrap gap-2">
             {job.skills.map((skill, index) => (
-              <span 
+              <span
                 key={index}
                 className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg"
               >
@@ -360,8 +359,8 @@ function JobDetail() {
             ) : (
               <div className="text-center p-4 bg-gray-50 border border-gray-200 rounded-lg">
                 <p className="text-gray-600">
-                  {job.status !== 'open' 
-                    ? 'This job is no longer accepting applications' 
+                  {job.status !== 'open'
+                    ? 'This job is no longer accepting applications'
                     : 'You cannot apply to this job'}
                 </p>
               </div>

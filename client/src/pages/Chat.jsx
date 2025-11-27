@@ -12,14 +12,14 @@ export default function Chat() {
   const navigate = useNavigate();
   const { getToken } = useAuth();
   const { socket, onlineUsers } = useSocket();
-  
+
   const [messages, setMessages] = useState([]);
   const [currentUser, setCurrentUser] = useState(null);
   const [otherUser, setOtherUser] = useState(null);
   const [newMessage, setNewMessage] = useState('');
   const [loading, setLoading] = useState(true);
   const [typing, setTyping] = useState(false);
-  
+
   const messagesEndRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const isMountedRef = useRef(true);
@@ -53,18 +53,18 @@ export default function Chat() {
       // Fetch current user
       const userResponse = await userService.getCurrentUser();
       if (!isMountedRef.current) return;
-      setCurrentUser(userResponse.data);
+      setCurrentUser(userResponse.user);
 
       // Fetch other user
       const otherUserResponse = await userService.getUserById(otherUserId);
       if (!isMountedRef.current) return;
-      setOtherUser(otherUserResponse.data);
+      setOtherUser(otherUserResponse.user);
 
       // Fetch messages
       const messagesResponse = await messageService.getMessages(jobId, otherUserId);
       if (!isMountedRef.current) return;
       setMessages(messagesResponse.data);
-      
+
       scrollToBottom();
     } catch (error) {
       console.error('Error fetching chat data:', error);
@@ -130,7 +130,7 @@ export default function Chat() {
   // Cleanup on unmount
   useEffect(() => {
     isMountedRef.current = true;
-    
+
     return () => {
       isMountedRef.current = false;
       if (typingTimeoutRef.current) {
@@ -143,9 +143,9 @@ export default function Chat() {
     if (!socket || !currentUser || !jobId || jobId === 'undefined') return;
 
     const roomId = `${jobId}-${[currentUser._id, otherUserId].sort().join('-')}`;
-    socket.emit('typing:start', { 
-      roomId, 
-      userName: `${currentUser.firstName} ${currentUser.lastName}` 
+    socket.emit('typing:start', {
+      roomId,
+      userName: `${currentUser.firstName} ${currentUser.lastName}`
     });
 
     // Clear existing timeout
@@ -239,7 +239,7 @@ export default function Chat() {
         >
           <ArrowLeft size={24} />
         </button>
-        
+
         {otherUser?.profileImage ? (
           <img
             src={otherUser.profileImage}
@@ -251,7 +251,7 @@ export default function Chat() {
             {otherUser?.firstName?.[0]}{otherUser?.lastName?.[0]}
           </div>
         )}
-        
+
         <div className="flex-1">
           <h2 className="font-semibold text-gray-900">
             {otherUser?.firstName} {otherUser?.lastName}
@@ -274,24 +274,22 @@ export default function Chat() {
           // Handle both populated sender object and senderId string
           const senderId = message.sender?._id || message.sender || message.senderId;
           const isOwn = senderId === currentUser._id || senderId === currentUser?._id?.toString();
-          
+
           return (
             <div
               key={message._id || index}
               className={`flex ${isOwn ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${
-                  isOwn
+                className={`max-w-xs lg:max-w-md px-4 py-2 rounded-2xl ${isOwn
                     ? 'bg-primary-600 text-white'
                     : 'bg-white text-gray-900 shadow-sm'
-                }`}
+                  }`}
               >
                 <p className="break-words">{message.content}</p>
                 <p
-                  className={`text-xs mt-1 ${
-                    isOwn ? 'text-primary-100' : 'text-gray-500'
-                  }`}
+                  className={`text-xs mt-1 ${isOwn ? 'text-primary-100' : 'text-gray-500'
+                    }`}
                 >
                   {formatTime(message.createdAt)}
                 </p>
@@ -299,7 +297,7 @@ export default function Chat() {
             </div>
           );
         })}
-        
+
         {typing && (
           <div className="flex justify-start">
             <div className="bg-white px-4 py-2 rounded-2xl shadow-sm">
@@ -311,7 +309,7 @@ export default function Chat() {
             </div>
           </div>
         )}
-        
+
         <div ref={messagesEndRef} />
       </div>
 

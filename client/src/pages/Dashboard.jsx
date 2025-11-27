@@ -37,7 +37,7 @@ export default function Dashboard() {
       setAuthToken(token);
 
       const response = await userService.getCurrentUser();
-      const userData = response.data;
+      const userData = response.user;
 
       if (!isMountedRef.current) return;
 
@@ -65,14 +65,14 @@ export default function Dashboard() {
   const fetchStats = async (role, token) => {
     try {
       setAuthToken(token);
-      
+
       if (role === 'freelancer') {
         // Fetch freelancer applications
         const appsResponse = await applicationService.getMyApplications();
         const applications = appsResponse.data;
-        
+
         if (!isMountedRef.current) return;
-        
+
         setStats({
           totalApplications: applications.length,
           pendingApplications: applications.filter(a => a.status === 'pending').length,
@@ -84,11 +84,11 @@ export default function Dashboard() {
         // Fetch client jobs
         const jobsResponse = await jobService.getMyJobs();
         const jobs = jobsResponse.data;
-        
+
         if (!isMountedRef.current) return;
-        
+
         const totalApplications = jobs.reduce((sum, job) => sum + (job.applicationsCount || 0), 0);
-        
+
         setStats({
           totalJobs: jobs.length,
           activeJobs: jobs.filter(j => j.status === 'open').length,
@@ -133,7 +133,7 @@ export default function Dashboard() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 mb-4">Error: {error}</p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="btn-primary"
           >
@@ -149,7 +149,7 @@ export default function Dashboard() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <p className="text-gray-600">Failed to load profile. Please refresh.</p>
-          <button 
+          <button
             onClick={() => window.location.reload()}
             className="btn-primary mt-4"
           >
@@ -171,8 +171,8 @@ export default function Dashboard() {
                 Welcome back, {user.firstName}! 👋
               </h1>
               <p className="text-gray-600 mt-1">
-                {user.role === 'freelancer' 
-                  ? 'Find your next opportunity' 
+                {user.role === 'freelancer'
+                  ? 'Find your next opportunity'
                   : 'Find the perfect talent for your project'}
               </p>
             </div>
@@ -190,8 +190,8 @@ export default function Dashboard() {
             <h3 className="text-lg font-semibold mb-2">Profile Completion</h3>
             <div className="flex items-center">
               <div className="flex-1 bg-gray-200 rounded-full h-2 mr-2">
-                <div 
-                  className="bg-primary-600 h-2 rounded-full" 
+                <div
+                  className="bg-primary-600 h-2 rounded-full"
                   style={{ width: '75%' }}
                 ></div>
               </div>
@@ -242,7 +242,7 @@ export default function Dashboard() {
         <div className="card mb-6">
           <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
           <div className="grid md:grid-cols-2 gap-4">
-           {user.role === 'freelancer' ? (
+            {user.role === 'freelancer' ? (
               <>
                 <Link to="/jobs" className="btn-primary text-left p-4 block">
                   <div className="text-2xl mb-2">🔍</div>
@@ -255,10 +255,10 @@ export default function Dashboard() {
                   <div className="text-sm">Track your applications</div>
                 </Link>
                 <Link to="/complete-profile" className="bg-gray-600 hover:bg-gray-700 text-white text-left p-4 block rounded-lg transition-colors">
-          <div className="text-2xl mb-2">👤</div>
-          <div className="font-semibold">Edit Profile</div>
-          <div className="text-sm opacity-90">Update your information</div>
-        </Link>
+                  <div className="text-2xl mb-2">👤</div>
+                  <div className="font-semibold">Edit Profile</div>
+                  <div className="text-sm opacity-90">Update your information</div>
+                </Link>
                 {stats.acceptedApplications > 0 && (
                   <Link to="/messages" className="bg-blue-600 hover:bg-blue-700 text-white text-left p-4 block rounded-lg transition-colors">
                     <div className="text-2xl mb-2">💬</div>
@@ -283,7 +283,7 @@ export default function Dashboard() {
                   <div className="text-2xl mb-2">👤</div>
                   <div className="font-semibold">Edit Profile</div>
                   <div className="text-sm opacity-90">Update your information</div>
-        </Link>
+                </Link>
                 {stats.totalApplications > 0 && (
                   <Link to="/messages" className="bg-blue-600 hover:bg-blue-700 text-white text-left p-4 block rounded-lg transition-colors">
                     <div className="text-2xl mb-2">💬</div>
