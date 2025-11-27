@@ -24,7 +24,11 @@ import {
 
 const router = express.Router();
 
-// Public routes (optionalAuth provides userId if logged in)
+// ============================================
+// CRITICAL: SPECIFIC ROUTES MUST COME FIRST!
+// ============================================
+
+// Public route - Get all jobs (with pagination/filters)
 router.get(
   '/',
   optionalAuth,
@@ -33,6 +37,27 @@ router.get(
   getJobs
 );
 
+// ✅ SPECIFIC ROUTES - Must come BEFORE /:id
+// Protected route - Get client's own jobs
+router.get(
+  '/my-jobs',
+  requireAuth,
+  requireRole(['client']),
+  paginationValidation,
+  getMyJobs
+);
+
+// Alternative route for compatibility
+router.get(
+  '/user/my-jobs',
+  requireAuth,
+  requireRole(['client']),
+  paginationValidation,
+  getMyJobs
+);
+
+// ✅ PARAMETERIZED ROUTES - Must come AFTER specific routes
+// Public route - Get single job by ID
 router.get(
   '/:id',
   optionalAuth,
@@ -40,7 +65,11 @@ router.get(
   getJobById
 );
 
-// Protected routes - Client only
+// ============================================
+// POST/PUT/DELETE ROUTES
+// ============================================
+
+// Protected route - Create new job (Client only)
 router.post(
   '/',
   requireAuth,
@@ -49,6 +78,7 @@ router.post(
   createJob
 );
 
+// Protected route - Update job (Client only)
 router.put(
   '/:id',
   requireAuth,
@@ -58,6 +88,7 @@ router.put(
   updateJob
 );
 
+// Protected route - Delete job (Client only)
 router.delete(
   '/:id',
   requireAuth,
@@ -66,25 +97,7 @@ router.delete(
   deleteJob
 );
 
-// FIXED: Changed from /client/my-jobs to /my-jobs
-// This matches your frontend call to /api/jobs/my-jobs
-router.get(
-  '/my-jobs',
-  requireAuth,
-  requireRole(['client']),
-  paginationValidation,
-  getMyJobs
-);
-
-// ALTERNATIVE: Support both routes for compatibility
-router.get(
-  '/user/my-jobs',
-  requireAuth,
-  requireRole(['client']),
-  paginationValidation,
-  getMyJobs
-);
-
+// Protected route - Cancel job (Client only)
 router.post(
   '/:id/cancel',
   requireAuth,
@@ -93,16 +106,7 @@ router.post(
   cancelJob
 );
 
-router.post(
-  '/:id/review/:submissionId',
-  requireAuth,
-  requireRole(['client']),
-  mongoIdValidation,
-  workReviewValidation,
-  reviewWork
-);
-
-// Protected routes - Freelancer only
+// Protected route - Submit work (Freelancer only)
 router.post(
   '/:id/submit',
   requireAuth,
@@ -110,6 +114,16 @@ router.post(
   mongoIdValidation,
   workSubmissionValidation,
   submitWork
+);
+
+// Protected route - Review work submission (Client only)
+router.post(
+  '/:id/review/:submissionId',
+  requireAuth,
+  requireRole(['client']),
+  mongoIdValidation,
+  workReviewValidation,
+  reviewWork
 );
 
 export default router;

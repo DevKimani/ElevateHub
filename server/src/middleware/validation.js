@@ -340,8 +340,13 @@ export const searchValidation = [
   
   query('status')
     .optional()
-    .isIn(['open', 'in_progress', 'completed', 'cancelled'])
+    .isIn(['all', 'open', 'in_progress', 'completed', 'cancelled'])  // ✅ FIXED: Added 'all'
     .withMessage('Invalid status'),
+  
+  query('experienceLevel')
+    .optional()
+    .isIn(['all', 'entry', 'intermediate', 'expert', 'any'])
+    .withMessage('Invalid experience level'),
   
   validateRequest
 ];
