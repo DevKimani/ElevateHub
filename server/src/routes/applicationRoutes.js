@@ -18,6 +18,10 @@ import {
 
 const router = express.Router();
 
+// ============================================
+// CRITICAL: SPECIFIC ROUTES MUST COME FIRST!
+// ============================================
+
 // Create application (Freelancer only)
 router.post(
   '/',
@@ -27,6 +31,7 @@ router.post(
   createApplication
 );
 
+// ✅ SPECIFIC ROUTE - Must come BEFORE /:id
 // Get freelancer's applications
 router.get(
   '/my-applications',
@@ -36,6 +41,7 @@ router.get(
   getMyApplications
 );
 
+// ✅ SPECIFIC ROUTE - Must come BEFORE /:id
 // Get applications for a job (Client only)
 router.get(
   '/job/:jobId',
@@ -46,6 +52,7 @@ router.get(
   getJobApplications
 );
 
+// ✅ PARAMETERIZED ROUTE - Must come AFTER specific routes
 // Get single application
 router.get(
   '/:id',
