@@ -8,13 +8,13 @@ function ApplyJob() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useUser();
-
+  
   const [job, setJob] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [errors, setErrors] = useState([]);
-
+  
   const [formData, setFormData] = useState({
     coverLetter: '',
     proposedBudget: '',
@@ -29,12 +29,12 @@ function ApplyJob() {
     try {
       setLoading(true);
       const response = await api.get(`/jobs/${id}`);
-      setJob(response.job);
-
+      setJob(response.data.job);
+      
       // Pre-fill proposed budget with job budget
       setFormData(prev => ({
         ...prev,
-        proposedBudget: response.job.budget
+        proposedBudget: response.data.job.budget
       }));
     } catch (err) {
       console.error('Error fetching job:', err);
@@ -50,7 +50,7 @@ function ApplyJob() {
       ...prev,
       [name]: value
     }));
-
+    
     // Clear errors when user starts typing
     if (errors.length > 0) {
       setErrors([]);
@@ -73,21 +73,21 @@ function ApplyJob() {
       console.log('Submitting application:', applicationData);
 
       const response = await api.post('/applications', applicationData);
-
-      console.log('Application submitted:', response);
-
+      
+      console.log('Application submitted:', response.data);
+      
       alert('Application submitted successfully!');
       navigate('/my-applications');
-
+      
     } catch (err) {
       console.error('Error submitting application:', err);
-
+      
       if (err.response?.data?.errors) {
         setErrors(err.response.data.errors);
       } else {
         setErrors([{ message: err.response?.data?.message || 'Failed to submit application' }]);
       }
-
+      
       // Scroll to top to show errors
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
@@ -112,7 +112,7 @@ function ApplyJob() {
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md text-center">
           <h3 className="text-red-800 font-semibold mb-2">Error</h3>
           <p className="text-red-700 mb-4">{error}</p>
-          <button
+          <button 
             onClick={() => navigate('/browse-jobs')}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
           >
@@ -205,8 +205,9 @@ function ApplyJob() {
             value={formData.coverLetter}
             onChange={handleChange}
             rows={10}
-            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.some(e => e.field === 'coverLetter') ? 'border-red-500' : 'border-gray-300'
-              }`}
+            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              errors.some(e => e.field === 'coverLetter') ? 'border-red-500' : 'border-gray-300'
+            }`}
             placeholder="Explain why you're the best fit for this job:&#10;&#10;- Your relevant experience&#10;- How you'll approach this project&#10;- Why you're interested in this opportunity&#10;- Your availability and timeline&#10;&#10;Example: I have 5+ years of experience in web development specializing in React and Node.js. I've completed similar projects for clients in the e-commerce space..."
             required
           />
@@ -228,8 +229,9 @@ function ApplyJob() {
             name="proposedBudget"
             value={formData.proposedBudget}
             onChange={handleChange}
-            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${errors.some(e => e.field === 'proposedBudget') ? 'border-red-500' : 'border-gray-300'
-              }`}
+            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              errors.some(e => e.field === 'proposedBudget') ? 'border-red-500' : 'border-gray-300'
+            }`}
             placeholder="5000"
             min="1"
             step="100"
@@ -264,12 +266,13 @@ function ApplyJob() {
           <button
             type="submit"
             disabled={submitting}
-            className={`flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors ${submitting ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+            className={`flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors ${
+              submitting ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             {submitting ? 'Submitting...' : 'Submit Application'}
           </button>
-
+          
           <button
             type="button"
             onClick={() => navigate(`/jobs/${id}`)}

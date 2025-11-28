@@ -9,6 +9,7 @@ import SignInPage from './pages/SignIn';
 import PostJob from './pages/PostJob';
 import BrowseJobs from './pages/BrowseJobs';
 import JobDetail from './pages/JobDetail';
+import ApplyJob from './pages/ApplyJob';  // ← ADD THIS IMPORT
 import MyJobs from './pages/MyJobs';
 import MyApplications from './pages/MyApplications';
 import JobApplications from './pages/JobApplications';
@@ -22,13 +23,24 @@ function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/sign-up/*" element={<SignUpPage />} />
         <Route path="/sign-in/*" element={<SignInPage />} />
+        
+        {/* Job routes */}
         <Route path="/jobs" element={<BrowseJobs />} />
         <Route path="/jobs/:id" element={<JobDetail />} />
+        
+        {/* ✅ ADD THIS ROUTE - Must come BEFORE /jobs/:jobId/applications */}
+        <Route path="/jobs/:id/apply" element={
+          <SignedIn>
+            <ApplyJob />
+          </SignedIn>
+        } />
+        
         <Route path="/jobs/:jobId/applications" element={
           <SignedIn>
             <JobApplications />
           </SignedIn>
         } />
+        
         <Route path="/complete-profile" element={
           <SignedIn>
             <CompleteProfile />
@@ -54,6 +66,7 @@ function App() {
             <MyApplications />
           </SignedIn>
         } />
+        
         {/* Messages routes */}
         <Route path="/messages" element={
           <SignedIn>

@@ -4,7 +4,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { userService } from '../services/userService';
 import { jobService } from '../services/jobService';
 import { applicationService } from '../services/applicationService';
-import { setAuthToken } from '../services/api';
 
 export default function Dashboard() {
   const { getToken, isSignedIn } = useAuth();
@@ -25,7 +24,7 @@ export default function Dashboard() {
   const fetchUserProfile = useCallback(async () => {
     try {
       const token = await getToken();
-      console.log('Dashboard: obtained token:', token);
+      console.log('Dashboard: obtained token:', !!token);
       if (!token) {
         if (isMountedRef.current) {
           setError('Authentication token not available');
@@ -33,8 +32,6 @@ export default function Dashboard() {
         }
         return;
       }
-
-      setAuthToken(token);
 
       const response = await userService.getCurrentUser();
       const userData = response.user;
@@ -49,7 +46,7 @@ export default function Dashboard() {
 
       setUser(userData);
       // Fetch stats based on role
-      await fetchStats(userData.role, token);
+      await fetchStats(userData.role);
     } catch (error) {
       console.error('Error fetching profile:', error);
       if (isMountedRef.current) {
@@ -62,14 +59,16 @@ export default function Dashboard() {
     }
   }, [getToken, navigate]);
 
-  const fetchStats = async (role, token) => {
+  const fetchStats = async (role) => {
     try {
-      setAuthToken(token);
-
       if (role === 'freelancer') {
         // Fetch freelancer applications
         const appsResponse = await applicationService.getMyApplications();
-        const applications = appsResponse.data;
+        
+        console.log('Applications response:', appsResponse);
+        
+        // ✅ FIX: Handle different response structures
+        const applications = appsResponse.applications || appsResponse.data?.applications || appsResponse.data || [];
 
         if (!isMountedRef.current) return;
 
@@ -83,15 +82,22 @@ export default function Dashboard() {
       } else {
         // Fetch client jobs
         const jobsResponse = await jobService.getMyJobs();
-        const jobs = jobsResponse.data;
+        
+        console.log('Jobs response:', jobsResponse);
+        
+        // ✅ FIX: Handle different response structures
+        const jobs = jobsResponse.jobs || jobsResponse.data?.jobs || jobsResponse.data || [];
 
         if (!isMountedRef.current) return;
 
-        const totalApplications = jobs.reduce((sum, job) => sum + (job.applicationsCount || 0), 0);
+        // ✅ FIX: Make sure jobs is an array before calling reduce
+        const totalApplications = Array.isArray(jobs) 
+          ? jobs.reduce((sum, job) => sum + (job.applicationsCount || 0), 0)
+          : 0;
 
         setStats({
-          totalJobs: jobs.length,
-          activeJobs: jobs.filter(j => j.status === 'open').length,
+          totalJobs: jobs.length || 0,
+          activeJobs: jobs.filter(j => j.status === 'open').length || 0,
           totalApplications: totalApplications,
           pendingApplications: 0,
           acceptedApplications: 0,
@@ -99,6 +105,7 @@ export default function Dashboard() {
       }
     } catch (error) {
       console.error('Error fetching stats:', error);
+      // Don't set error state - just log it and use default stats
     }
   };
 
@@ -121,7 +128,7 @@ export default function Dashboard() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading your dashboard...</p>
         </div>
       </div>
@@ -135,7 +142,7 @@ export default function Dashboard() {
           <p className="text-red-600 mb-4">Error: {error}</p>
           <button
             onClick={() => window.location.reload()}
-            className="btn-primary"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
           >
             Refresh Page
           </button>
@@ -151,7 +158,7 @@ export default function Dashboard() {
           <p className="text-gray-600">Failed to load profile. Please refresh.</p>
           <button
             onClick={() => window.location.reload()}
-            className="btn-primary mt-4"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 mt-4"
           >
             Refresh Page
           </button>
@@ -177,21 +184,21 @@ export default function Dashboard() {
               </p>
             </div>
             <div className="text-right">
-              <div className="inline-block px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm font-medium">
+              <div className="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
                 {user.role === 'freelancer' ? '💼 Freelancer' : '👥 Client'}
               </div>
             </div>
           </div>
         </div>
 
-        {/* Profile Summary - Fixed grid to show 4 cards properly */}
+        {/* Profile Summary */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-          <div className="card">
+          <div className="bg-white rounded-lg shadow p-6">
             <h3 className="text-lg font-semibold mb-2">Profile Completion</h3>
             <div className="flex items-center">
               <div className="flex-1 bg-gray-200 rounded-full h-2 mr-2">
                 <div
-                  className="bg-primary-600 h-2 rounded-full"
+                  className="bg-blue-600 h-2 rounded-full"
                   style={{ width: '75%' }}
                 ></div>
               </div>
@@ -201,17 +208,17 @@ export default function Dashboard() {
 
           {user.role === 'freelancer' ? (
             <>
-              <div className="card">
+              <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-2">Applications</h3>
-                <p className="text-3xl font-bold text-primary-600">{stats.totalApplications}</p>
+                <p className="text-3xl font-bold text-blue-600">{stats.totalApplications}</p>
                 <p className="text-sm text-gray-600">Total submitted</p>
               </div>
-              <div className="card">
+              <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-2">Pending</h3>
                 <p className="text-3xl font-bold text-yellow-600">{stats.pendingApplications}</p>
                 <p className="text-sm text-gray-600">Awaiting response</p>
               </div>
-              <div className="card">
+              <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-2">Accepted</h3>
                 <p className="text-3xl font-bold text-green-600">{stats.acceptedApplications}</p>
                 <p className="text-sm text-gray-600">Active projects</p>
@@ -219,17 +226,17 @@ export default function Dashboard() {
             </>
           ) : (
             <>
-              <div className="card">
+              <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-2">Total Jobs</h3>
-                <p className="text-3xl font-bold text-primary-600">{stats.totalJobs}</p>
+                <p className="text-3xl font-bold text-blue-600">{stats.totalJobs}</p>
                 <p className="text-sm text-gray-600">Jobs posted</p>
               </div>
-              <div className="card">
+              <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-2">Open Jobs</h3>
                 <p className="text-3xl font-bold text-green-600">{stats.activeJobs}</p>
                 <p className="text-sm text-gray-600">Accepting applications</p>
               </div>
-              <div className="card">
+              <div className="bg-white rounded-lg shadow p-6">
                 <h3 className="text-lg font-semibold mb-2">Applications</h3>
                 <p className="text-3xl font-bold text-blue-600">{stats.totalApplications}</p>
                 <p className="text-sm text-gray-600">Total received</p>
@@ -239,20 +246,20 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="card mb-6">
+        <div className="bg-white rounded-lg shadow p-6 mb-6">
           <h2 className="text-xl font-bold mb-4">Quick Actions</h2>
           <div className="grid md:grid-cols-2 gap-4">
             {user.role === 'freelancer' ? (
               <>
-                <Link to="/jobs" className="btn-primary text-left p-4 block">
+                <Link to="/browse-jobs" className="bg-blue-600 hover:bg-blue-700 text-white text-left p-4 block rounded-lg transition-colors">
                   <div className="text-2xl mb-2">🔍</div>
                   <div className="font-semibold">Browse Jobs</div>
                   <div className="text-sm opacity-90">Find your next opportunity</div>
                 </Link>
-                <Link to="/my-applications" className="btn-secondary text-left p-4 block">
+                <Link to="/my-applications" className="bg-gray-600 hover:bg-gray-700 text-white text-left p-4 block rounded-lg transition-colors">
                   <div className="text-2xl mb-2">📝</div>
                   <div className="font-semibold">My Applications</div>
-                  <div className="text-sm">Track your applications</div>
+                  <div className="text-sm opacity-90">Track your applications</div>
                 </Link>
                 <Link to="/complete-profile" className="bg-gray-600 hover:bg-gray-700 text-white text-left p-4 block rounded-lg transition-colors">
                   <div className="text-2xl mb-2">👤</div>
@@ -269,15 +276,15 @@ export default function Dashboard() {
               </>
             ) : (
               <>
-                <Link to="/post-job" className="btn-primary text-left p-4 block">
+                <Link to="/post-job" className="bg-blue-600 hover:bg-blue-700 text-white text-left p-4 block rounded-lg transition-colors">
                   <div className="text-2xl mb-2">➕</div>
                   <div className="font-semibold">Post a Job</div>
                   <div className="text-sm opacity-90">Find the right talent</div>
                 </Link>
-                <Link to="/my-jobs" className="btn-secondary text-left p-4 block">
+                <Link to="/my-jobs" className="bg-gray-600 hover:bg-gray-700 text-white text-left p-4 block rounded-lg transition-colors">
                   <div className="text-2xl mb-2">📋</div>
                   <div className="font-semibold">Manage Jobs</div>
-                  <div className="text-sm">View your posted jobs</div>
+                  <div className="text-sm opacity-90">View your posted jobs</div>
                 </Link>
                 <Link to="/complete-profile" className="bg-gray-600 hover:bg-gray-700 text-white text-left p-4 block rounded-lg transition-colors">
                   <div className="text-2xl mb-2">👤</div>
@@ -297,7 +304,7 @@ export default function Dashboard() {
         </div>
 
         {/* Profile Info */}
-        <div className="card">
+        <div className="bg-white rounded-lg shadow p-6">
           <h2 className="text-xl font-bold mb-4">Your Profile</h2>
           <div className="space-y-3">
             <div>
@@ -317,7 +324,7 @@ export default function Dashboard() {
                   {user.skills.map((skill, index) => (
                     <span
                       key={index}
-                      className="px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm"
+                      className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
                     >
                       {skill}
                     </span>

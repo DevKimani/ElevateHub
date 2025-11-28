@@ -1,3 +1,8 @@
+// client/src/pages/PostJob.jsx
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import api from '../services/api';
+
 function PostJob() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -101,8 +106,9 @@ function PostJob() {
             name="title"
             value={formData.title}
             onChange={handleChange}
-            className={`w - full px - 4 py - 2 border rounded - lg focus: ring - 2 focus: ring - blue - 500 focus: border - blue - 500 ${errors.some(e => e.field === 'title') ? 'border-red-500' : 'border-gray-300'
-              } `}
+            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              errors.some(e => e.field === 'title') ? 'border-red-500' : 'border-gray-300'
+            }`}
             placeholder="e.g., Build a responsive e-commerce website with React and Node.js"
             required
           />
@@ -124,8 +130,9 @@ function PostJob() {
             value={formData.description}
             onChange={handleChange}
             rows={8}
-            className={`w - full px - 4 py - 2 border rounded - lg focus: ring - 2 focus: ring - blue - 500 focus: border - blue - 500 ${errors.some(e => e.field === 'description') ? 'border-red-500' : 'border-gray-300'
-              } `}
+            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              errors.some(e => e.field === 'description') ? 'border-red-500' : 'border-gray-300'
+            }`}
             placeholder="Describe the job in detail:&#10;- What needs to be done&#10;- Required skills&#10;- Deliverables&#10;- Timeline expectations&#10;&#10;Example: I'm looking for an experienced full-stack developer to build a modern e-commerce platform. The project includes user authentication, product catalog, shopping cart, payment integration with M-Pesa, and an admin dashboard..."
             required
           />
@@ -147,8 +154,9 @@ function PostJob() {
             name="budget"
             value={formData.budget}
             onChange={handleChange}
-            className={`w - full px - 4 py - 2 border rounded - lg focus: ring - 2 focus: ring - blue - 500 focus: border - blue - 500 ${errors.some(e => e.field === 'budget') ? 'border-red-500' : 'border-gray-300'
-              } `}
+            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              errors.some(e => e.field === 'budget') ? 'border-red-500' : 'border-gray-300'
+            }`}
             placeholder="5000"
             min="100"
             step="100"
@@ -168,8 +176,9 @@ function PostJob() {
             name="category"
             value={formData.category}
             onChange={handleChange}
-            className={`w - full px - 4 py - 2 border rounded - lg focus: ring - 2 focus: ring - blue - 500 focus: border - blue - 500 ${errors.some(e => e.field === 'category') ? 'border-red-500' : 'border-gray-300'
-              } `}
+            className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              errors.some(e => e.field === 'category') ? 'border-red-500' : 'border-gray-300'
+            }`}
             required
           >
             <option value="Web Development">Web Development</option>
@@ -242,8 +251,9 @@ function PostJob() {
           <button
             type="submit"
             disabled={loading}
-            className={`flex - 1 bg - blue - 600 text - white py - 3 px - 6 rounded - lg font - medium hover: bg - blue - 700 transition - colors ${loading ? 'opacity-50 cursor-not-allowed' : ''
-              } `}
+            className={`flex-1 bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors ${
+              loading ? 'opacity-50 cursor-not-allowed' : ''
+            }`}
           >
             {loading ? 'Posting Job...' : 'Post Job'}
           </button>
