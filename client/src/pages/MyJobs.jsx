@@ -1,9 +1,10 @@
 // client/src/pages/MyJobs.jsx
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import api from '../services/api';
 
 function MyJobs() {
+  const navigate = useNavigate();
   const [jobs, setJobs] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -29,6 +30,26 @@ function MyJobs() {
         limit: pagination.limit
       });
 
+      if (filter !== 'all') {
+        params.append('status', filter);
+      }
+
+      // ✅ FIX: Actually fetch the jobs!
+      const response = await api.get(`/jobs/my-jobs?${params.toString()}`);
+      
+      console.log('My jobs response:', response.data);
+
+      setJobs(response.data.jobs || []);
+      
+      if (response.data.pagination) {
+        setPagination(prev => ({
+          ...prev,
+          total: response.data.pagination.total,
+          pages: response.data.pagination.pages,
+          hasNext: response.data.pagination.hasNext,
+          hasPrev: response.data.pagination.hasPrev
+        }));
+      }
 
     } catch (err) {
       console.error('Error fetching my jobs:', err);
@@ -65,10 +86,10 @@ function MyJobs() {
       <div className="flex justify-center items-center min-h-screen">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
           <h3 className="text-red-800 font-semibold mb-2">Error Loading Jobs</h3>
-          <p className="text-red-700">{error}</p>
+          <p className="text-red-700 mb-4">{error}</p>
           <button
             onClick={fetchMyJobs}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
           >
             Try Again
           </button>
@@ -105,10 +126,11 @@ function MyJobs() {
                 setFilter(status);
                 setPagination(prev => ({ ...prev, page: 1 }));
               }}
-              className={`px-6 py-4 font-medium capitalize transition-colors ${filter === status
+              className={`px-6 py-4 font-medium capitalize transition-colors ${
+                filter === status
                   ? 'border-b-2 border-blue-600 text-blue-600'
                   : 'text-gray-600 hover:text-gray-900'
-                }`}
+              }`}
             >
               {status.replace('_', ' ')}
             </button>
@@ -173,7 +195,7 @@ function MyJobs() {
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold text-blue-600">
-                    KES {job.budget.toLocaleString()}
+                    KES {job.budget?.toLocaleString()}
                   </div>
                 </div>
               </div>
