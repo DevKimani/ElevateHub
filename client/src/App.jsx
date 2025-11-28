@@ -9,7 +9,7 @@ import SignInPage from './pages/SignIn';
 import PostJob from './pages/PostJob';
 import BrowseJobs from './pages/BrowseJobs';
 import JobDetail from './pages/JobDetail';
-import ApplyJob from './pages/ApplyJob';  // ← ADD THIS IMPORT
+import ApplyJob from './pages/ApplyJob';
 import MyJobs from './pages/MyJobs';
 import MyApplications from './pages/MyApplications';
 import JobApplications from './pages/JobApplications';
@@ -24,11 +24,12 @@ function App() {
         <Route path="/sign-up/*" element={<SignUpPage />} />
         <Route path="/sign-in/*" element={<SignInPage />} />
         
-        {/* Job routes */}
+        {/* Job routes - Support both /jobs and /browse-jobs */}
         <Route path="/jobs" element={<BrowseJobs />} />
+        <Route path="/browse-jobs" element={<BrowseJobs />} />  {/* ✅ ADD THIS */}
         <Route path="/jobs/:id" element={<JobDetail />} />
         
-        {/* ✅ ADD THIS ROUTE - Must come BEFORE /jobs/:jobId/applications */}
+        {/* Apply route - Must come BEFORE /jobs/:jobId/applications */}
         <Route path="/jobs/:id/apply" element={
           <SignedIn>
             <ApplyJob />

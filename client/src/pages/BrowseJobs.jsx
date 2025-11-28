@@ -32,7 +32,8 @@ function BrowseJobs() {
       // Build query params
       const params = new URLSearchParams({
         page: pagination.page,
-        limit: pagination.limit
+        limit: pagination.limit,
+        status: 'open'  // Only show open jobs
       });
 
       if (filters.category && filters.category !== 'all') {
@@ -43,6 +44,26 @@ function BrowseJobs() {
       }
       if (filters.minBudget) {
         params.append('minBudget', filters.minBudget);
+      }
+      if (filters.maxBudget) {
+        params.append('maxBudget', filters.maxBudget);
+      }
+
+      // ✅ FIX: Actually fetch the jobs!
+      const response = await api.get(`/jobs?${params.toString()}`);
+      
+      console.log('Jobs response:', response.data);
+
+      setJobs(response.data.jobs || []);
+      
+      if (response.data.pagination) {
+        setPagination(prev => ({
+          ...prev,
+          total: response.data.pagination.total,
+          pages: response.data.pagination.pages,
+          hasNext: response.data.pagination.hasNext,
+          hasPrev: response.data.pagination.hasPrev
+        }));
       }
 
     } catch (err) {
@@ -83,10 +104,10 @@ function BrowseJobs() {
       <div className="flex justify-center items-center min-h-screen">
         <div className="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md">
           <h3 className="text-red-800 font-semibold mb-2">Error Loading Jobs</h3>
-          <p className="text-red-700">{error}</p>
+          <p className="text-red-700 mb-4">{error}</p>
           <button
             onClick={fetchJobs}
-            className="mt-4 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
           >
             Try Again
           </button>
@@ -231,9 +252,9 @@ function BrowseJobs() {
                 </div>
                 <div className="text-right">
                   <div className="text-2xl font-bold text-blue-600">
-                    KES {job.budget.toLocaleString()}
+                    KES {job.budget?.toLocaleString()}
                   </div>
-                  <span className="inline-block mt-2 px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full">
+                  <span className="inline-block mt-2 px-3 py-1 bg-green-100 text-green-800 text-sm rounded-full capitalize">
                     {job.status}
                   </span>
                 </div>
