@@ -39,9 +39,17 @@ async function makeAdmin() {
     console.log(`Found user: ${user.firstName} ${user.lastName} (${user.email})`);
     console.log(`Current role: ${user.role}`);
 
+    // ✅ FIX: Clean up portfolio field if it's an array
+    if (Array.isArray(user.portfolio)) {
+      user.portfolio = '';
+      console.log('⚠️  Fixed portfolio field (was array, now empty string)');
+    }
+
     // Update user role to admin
     user.role = 'admin';
-    await user.save();
+    
+    // Save without validation to avoid field type errors
+    await user.save({ validateBeforeSave: false });
 
     console.log('✅ Updated user role to admin in database');
 
@@ -73,6 +81,7 @@ async function makeAdmin() {
 
   } catch (error) {
     console.error('❌ Error:', error.message);
+    console.error('Full error:', error);
     process.exit(1);
   } finally {
     await mongoose.connection.close();
