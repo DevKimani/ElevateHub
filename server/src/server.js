@@ -16,6 +16,7 @@ import jobRoutes from './routes/jobRoutes.js';
 import applicationRoutes from './routes/applicationRoutes.js';
 import messageRoutes from './routes/messageRoutes.js';
 import transactionRoutes from './routes/transactionRoutes.js';
+import adminRoutes from './routes/adminRoutes.js'; // ✅ NEW: Admin routes
 
 const app = express();
 const server = http.createServer(app);
@@ -99,6 +100,7 @@ app.get('/', (req, res) => {
       applications: '/api/applications',
       messages: '/api/messages',
       transactions: '/api/transactions',
+      admin: '/api/admin', // ✅ NEW: Admin endpoint
       health: '/health'
     }
   });
@@ -109,18 +111,27 @@ app.get('/', (req, res) => {
 
 // User routes
 app.use('/api/users', userRoutes);
+console.log('✓ User routes registered');
 
 // Job routes - REGISTER BEFORE OTHER ROUTES
 app.use('/api/jobs', jobRoutes);
+console.log('✓ Job routes registered');
 
 // Application routes
 app.use('/api/applications', applicationRoutes);
+console.log('✓ Application routes registered');
 
 // Message routes
 app.use('/api/messages', messageRoutes);
+console.log('✓ Message routes registered');
 
 // Transaction routes
 app.use('/api/transactions', transactionRoutes);
+console.log('✓ Transaction routes registered');
+
+// ✅ NEW: Admin routes
+app.use('/api/admin', adminRoutes);
+console.log('✓ Admin routes registered');
 
 // 404 handler (must be after all routes)
 app.use(notFound);
