@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { useAuth } from '@clerk/clerk-react';
+import { useAuth, useUser } from '@clerk/clerk-react';
 import { useNavigate, Link } from 'react-router-dom';
 import { userService } from '../services/userService';
 import { jobService } from '../services/jobService';
@@ -7,6 +7,7 @@ import { applicationService } from '../services/applicationService';
 
 export default function Dashboard() {
   const { getToken, isSignedIn } = useAuth();
+  const { user: clerkUser } = useUser();
   const navigate = useNavigate();
   const [user, setUser] = useState(null);
   const [error, setError] = useState('');
@@ -19,6 +20,18 @@ export default function Dashboard() {
   });
   const [loading, setLoading] = useState(true);
   const isMountedRef = useRef(true);
+
+  // ✅ Check if user is admin
+  const userRole = clerkUser?.publicMetadata?.role;
+  const isAdmin = userRole === 'admin';
+
+  // ✅ Redirect admins to admin dashboard immediately
+  useEffect(() => {
+    if (isAdmin && clerkUser) {
+      console.log('User is admin, redirecting to admin dashboard');
+      navigate('/admin/dashboard', { replace: true });
+    }
+  }, [isAdmin, clerkUser, navigate]);
 
   // Define fetchUserProfile BEFORE using it in useEffect
   const fetchUserProfile = useCallback(async () => {
@@ -38,15 +51,21 @@ export default function Dashboard() {
 
       if (!isMountedRef.current) return;
 
-      // Check if profile is complete
-      if (!userData.role || (userData.role === 'freelancer' && (!userData.skills || userData.skills.length === 0))) {
-        navigate('/complete-profile');
-        return;
+      // ✅ Skip profile check for admins
+      if (userData.role !== 'admin') {
+        // Check if profile is complete
+        if (!userData.role || (userData.role === 'freelancer' && (!userData.skills || userData.skills.length === 0))) {
+          navigate('/complete-profile');
+          return;
+        }
       }
 
       setUser(userData);
-      // Fetch stats based on role
-      await fetchStats(userData.role);
+      
+      // ✅ Only fetch stats for non-admin users
+      if (userData.role !== 'admin') {
+        await fetchStats(userData.role);
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
       if (isMountedRef.current) {
@@ -67,7 +86,6 @@ export default function Dashboard() {
         
         console.log('Applications response:', appsResponse);
         
-        // ✅ FIX: Handle different response structures
         const applications = appsResponse.applications || appsResponse.data?.applications || appsResponse.data || [];
 
         if (!isMountedRef.current) return;
@@ -79,18 +97,16 @@ export default function Dashboard() {
           totalJobs: 0,
           activeJobs: 0,
         });
-      } else {
+      } else if (role === 'client') {
         // Fetch client jobs
         const jobsResponse = await jobService.getMyJobs();
         
         console.log('Jobs response:', jobsResponse);
         
-        // ✅ FIX: Handle different response structures
         const jobs = jobsResponse.jobs || jobsResponse.data?.jobs || jobsResponse.data || [];
 
         if (!isMountedRef.current) return;
 
-        // ✅ FIX: Make sure jobs is an array before calling reduce
         const totalApplications = Array.isArray(jobs) 
           ? jobs.reduce((sum, job) => sum + (job.applicationsCount || 0), 0)
           : 0;
@@ -111,10 +127,10 @@ export default function Dashboard() {
 
   // Now use fetchUserProfile in useEffect
   useEffect(() => {
-    if (isSignedIn) {
+    if (isSignedIn && !isAdmin) {
       fetchUserProfile();
     }
-  }, [isSignedIn, fetchUserProfile]);
+  }, [isSignedIn, isAdmin, fetchUserProfile]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -123,6 +139,18 @@ export default function Dashboard() {
       isMountedRef.current = false;
     };
   }, []);
+
+  // ✅ Show loading while redirecting admins
+  if (isAdmin) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Redirecting to admin dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (loading) {
     return (
