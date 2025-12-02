@@ -5,99 +5,111 @@ const userSchema = new mongoose.Schema({
   clerkId: {
     type: String,
     required: true,
-    unique: true
-    // REMOVED: index: true (to avoid duplicate with schema.index() below)
+    unique: true,
   },
   email: {
     type: String,
     required: true,
     unique: true,
-    lowercase: true
-    // REMOVED: index: true (to avoid duplicate with schema.index() below)
   },
   firstName: {
     type: String,
-    required: true
+    default: '',
   },
   lastName: {
     type: String,
-    required: true
+    default: '',
   },
   role: {
     type: String,
-    enum: ['client', 'freelancer'],
-    required: true
+    enum: ['client', 'freelancer', 'admin'],
+    default: 'freelancer',
   },
-  profilePicture: {
+  profileImage: {
     type: String,
-    default: ''
+    default: '',
   },
   bio: {
     type: String,
-    maxlength: 500,
-    default: ''
+    default: '',
   },
   skills: [{
     type: String,
-    trim: true
   }],
   hourlyRate: {
     type: Number,
-    min: 0
+    default: 0,
   },
   location: {
     type: String,
-    default: ''
+    default: '',
   },
-  phoneNumber: {
+  phone: {
     type: String,
-    default: ''
+    default: '',
   },
-  escrowBalance: {
-    type: Number,
-    default: 0,
-    min: 0
+  portfolio: {
+    type: String,
+    default: '',
   },
-  completedJobs: {
-    type: Number,
-    default: 0
-  },
-  rating: {
-    type: Number,
-    default: 0,
-    min: 0,
-    max: 5
-  },
-  reviewCount: {
-    type: Number,
-    default: 0
-  },
+  // ✅ NEW: Suspension and status fields
   isActive: {
     type: Boolean,
-    default: true
+    default: true,
   },
-  lastActive: {
+  isSuspended: {
+    type: Boolean,
+    default: false,
+  },
+  suspendedAt: {
     type: Date,
-    default: Date.now
-  }
+    default: null,
+  },
+  suspendedBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null,
+  },
+  suspensionReason: {
+    type: String,
+    default: '',
+  },
+  lastLogin: {
+    type: Date,
+    default: Date.now,
+  },
 }, {
-  timestamps: true
+  timestamps: true,
 });
 
-// Add indexes separately (not on field definition)
-// This prevents the duplicate index warning
+// Indexes for performance
 userSchema.index({ clerkId: 1 });
 userSchema.index({ email: 1 });
 userSchema.index({ role: 1 });
+userSchema.index({ isActive: 1 });
+userSchema.index({ isSuspended: 1 });
 
-// Virtual for full name
-userSchema.virtual('fullName').get(function() {
-  return `${this.firstName} ${this.lastName}`;
-});
+// Methods
+userSchema.methods.suspend = function(adminId, reason) {
+  this.isSuspended = true;
+  this.suspendedAt = new Date();
+  this.suspendedBy = adminId;
+  this.suspensionReason = reason || 'No reason provided';
+  return this.save();
+};
 
-// Ensure virtuals are included
-userSchema.set('toJSON', { virtuals: true });
-userSchema.set('toObject', { virtuals: true });
+userSchema.methods.unsuspend = function() {
+  this.isSuspended = false;
+  this.suspendedAt = null;
+  this.suspendedBy = null;
+  this.suspensionReason = '';
+  return this.save();
+};
+
+userSchema.methods.updateLastLogin = function() {
+  this.lastLogin = new Date();
+  return this.save();
+};
 
 const User = mongoose.model('User', userSchema);
 

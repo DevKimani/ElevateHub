@@ -15,6 +15,9 @@ import MyApplications from './pages/MyApplications';
 import JobApplications from './pages/JobApplications';
 import Messages from './pages/Messages';
 import Chat from './pages/Chat';
+// ✅ NEW: Admin pages
+import AdminDashboard from './pages/admin/AdminDashboard';
+import UserManagement from './pages/admin/UserManagement';
 
 function App() {
   return (
@@ -26,7 +29,7 @@ function App() {
         
         {/* Job routes - Support both /jobs and /browse-jobs */}
         <Route path="/jobs" element={<BrowseJobs />} />
-        <Route path="/browse-jobs" element={<BrowseJobs />} />  {/* ✅ ADD THIS */}
+        <Route path="/browse-jobs" element={<BrowseJobs />} />
         <Route path="/jobs/:id" element={<JobDetail />} />
         
         {/* Apply route - Must come BEFORE /jobs/:jobId/applications */}
@@ -77,6 +80,23 @@ function App() {
         <Route path="/messages/:jobId/:otherUserId" element={
           <SignedIn>
             <Chat />
+          </SignedIn>
+        } />
+
+        {/* NEW: Admin routes */}
+        <Route path="/admin/dashboard" element={
+          <SignedIn>
+            <AdminDashboard />
+          </SignedIn>
+        } />
+        <Route path="/admin/users" element={
+          <SignedIn>
+            <UserManagement />
+          </SignedIn>
+        } />
+        <Route path="/admin/analytics" element={
+          <SignedIn>
+            <AdminDashboard />
           </SignedIn>
         } />
       </Routes>
